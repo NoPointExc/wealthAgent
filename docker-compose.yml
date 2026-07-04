@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 768M }
+        reservations: { memory: 256M }
+    environment:
+      POSTGRES_DB: wealthagent
+      POSTGRES_USER: wealthagent
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wealthagent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/nopointexc/wealthagent-backend:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 512M }
+        reservations: { memory: 128M }
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      BIND_ADDR: 0.0.0.0:8080
+      APP_ENCRYPTION_KEY_PATH: /run/secrets/app_encryption_key
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      PLAID_CLIENT_ID_FILE: /run/secrets/plaid_client_id
+      PLAID_SECRET_FILE: /run/secrets/plaid_secret
+      HTTPS_ENABLED: "true"
+    secrets:
+      - postgres_password
+      - app_encryption_key
+      - jwt_secret
+      - plaid_client_id
+      - plaid_secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  caddy:
+    image: ghcr.io/nopointexc/wealthagent-frontend:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 128M }
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+
+secrets:
+  postgres_password:  { file: /etc/wealthagent/secrets/postgres_password }
+  app_encryption_key: { file: /etc/wealthagent/secrets/app_encryption_key }
+  jwt_secret:         { file: /etc/wealthagent/secrets/jwt_secret }
+  plaid_client_id:    { file: /etc/wealthagent/secrets/plaid_client_id }
+  plaid_secret:       { file: /etc/wealthagent/secrets/plaid_secret }
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

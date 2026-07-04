@@ -1,0 +1,8 @@
+node_modules
+target
+dist
+frontend-dist
+.git
+secrets
+*.md
+docs

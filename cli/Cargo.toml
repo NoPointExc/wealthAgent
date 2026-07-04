@@ -1,0 +1,23 @@
+[package]
+name = "wealthagent-cli"
+version = "0.1.0"
+edition = "2021"
+description = "WealthAgent MCP server and CLI — exposes your wealth data to AI agents"
+rust-version = "1.85"  # required for rmcp (uses Rust edition 2024 internally)
+
+[[bin]]
+name = "wealth-mcp"
+path = "src/bin/wealth_mcp.rs"
+
+[dependencies]
+# MCP SDK — default features include macros + server; add transport-io for stdio + schemars for JsonSchema
+rmcp = { version = "1.7", features = ["server", "transport-io", "schemars"] }
+schemars = "0.8"
+
+tokio        = { version = "1", features = ["full"] }
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+reqwest      = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+anyhow       = "1"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

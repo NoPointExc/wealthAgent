@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texas Net Worth — Connect your money to your AI</title>
+  <meta name="description" content="Aggregate every bank, brokerage, card, and loan into one secure endpoint your AI agent can query. Powered by Plaid. Works with Claude, ChatGPT, Gemini — any MCP client. Read-only, encrypted, revoke anytime." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Texas Net Worth — Connect your money to your AI" />
+  <meta property="og:description" content="One secure endpoint that lets the AI agent you already trust read your aggregated financial life. Read-only. Encrypted. You hold the keys." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.texasnetworth.com" />
+
+  <style>
+    :root {
+      --bg:        #020617;
+      --surface:   #0f172a;
+      --surface-2: #131c31;
+      --border:    #1e293b;
+      --border-2:  #334155;
+      --text:      #f1f5f9;
+      --muted:     #94a3b8;
+      --faint:     #64748b;
+      --blue:      #60a5fa;
+      --blue-500:  #3b82f6;
+      --cyan:      #22d3ee;
+      --indigo:    #818cf8;
+      --green:     #34d399;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    .icon { width: 1em; height: 1em; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ---------- buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-weight: 700; font-size: 15px; letter-spacing: .01em;
+      padding: 13px 22px; border-radius: 12px; cursor: pointer;
+      transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+      border: 1px solid transparent; white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue-500), var(--indigo));
+      color: #fff; box-shadow: 0 8px 30px -8px rgba(59,130,246,.6);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -10px rgba(59,130,246,.75); }
+    .btn-ghost { background: rgba(148,163,184,.06); border-color: var(--border-2); color: var(--text); }
+    .btn-ghost:hover { background: rgba(148,163,184,.12); border-color: var(--blue); }
+    .btn .icon { width: 18px; height: 18px; }
+
+    /* ---------- nav ---------- */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: blur(12px);
+      background: rgba(2,6,23,.72);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .08em; font-size: 17px; }
+    .brand .icon { width: 22px; height: 22px; color: var(--blue); }
+    .brand small { display:block; font-weight: 600; letter-spacing: .02em; font-size: 10px; color: var(--faint); margin-top: 1px; }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a.lnk { color: var(--muted); font-size: 14px; font-weight: 600; transition: color .2s; }
+    .nav-links a.lnk:hover { color: var(--text); }
+    @media (max-width: 720px){ .nav-links a.lnk { display: none; } }
+
+    /* ---------- hero ---------- */
+    .hero { position: relative; padding: 96px 0 72px; overflow: hidden; }
+    .hero::before {
+      content: ""; position: absolute; inset: -200px 0 auto 0; height: 600px; z-index: 0;
+      background:
+        radial-gradient(600px 300px at 22% 12%, rgba(59,130,246,.20), transparent 70%),
+        radial-gradient(540px 300px at 82% 0%, rgba(129,140,248,.16), transparent 70%);
+      pointer-events: none;
+    }
+    .hero-grid {
+      position: relative; z-index: 1;
+      display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center;
+    }
+    @media (max-width: 920px){ .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--blue); background: rgba(59,130,246,.10);
+      border: 1px solid rgba(59,130,246,.25); border-radius: 999px; padding: 6px 13px;
+    }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(52,211,153,.18); }
+
+    h1 {
+      font-size: clamp(34px, 5.4vw, 58px); line-height: 1.04; font-weight: 800;
+      letter-spacing: -.02em; margin: 22px 0 0;
+    }
+    h1 .grad {
+      background: linear-gradient(120deg, var(--blue), var(--cyan) 60%, var(--indigo));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lede { font-size: clamp(16px, 1.9vw, 19px); color: var(--muted); margin: 22px 0 0; max-width: 540px; }
+    .cta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 32px; }
+    .trust { display: flex; flex-wrap: wrap; gap: 18px 24px; margin-top: 34px; }
+    .trust span { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--faint); font-weight: 600; }
+    .trust .icon { width: 15px; height: 15px; color: var(--green); }
+
+    /* ---------- chat mockup ---------- */
+    .mock {
+      position: relative;
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border-2); border-radius: 18px;
+      box-shadow: 0 40px 80px -30px rgba(0,0,0,.8); overflow: hidden;
+    }
+    .mock-bar { display: flex; align-items: center; gap: 8px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+    .mock-bar .d { width: 11px; height: 11px; border-radius: 50%; background: var(--border-2); }
+    .mock-bar .t { margin-left: 8px; font-size: 12px; color: var(--faint); font-weight: 600; }
+    .mock-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    .bubble { border-radius: 14px; padding: 12px 14px; font-size: 14px; max-width: 86%; }
+    .bubble.user { align-self: flex-end; background: linear-gradient(135deg, var(--blue-500), var(--indigo)); color: #fff; border-bottom-right-radius: 4px; }
+    .bubble.ai { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .bubble.ai .who { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--blue); text-transform: uppercase; margin-bottom: 8px; }
+    .bubble.ai .who .icon { width: 14px; height: 14px; }
+    .stat-line { display: flex; justify-content: space-between; gap: 16px; padding: 5px 0; font-size: 13.5px; border-bottom: 1px dashed var(--border); }
+    .stat-line:last-child { border-bottom: none; }
+    .stat-line .k { color: var(--muted); }
+    .stat-line .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat-line .v.pos { color: var(--green); }
+    .tool-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--faint); background: rgba(148,163,184,.07); border: 1px solid var(--border); border-radius: 7px; padding: 4px 8px; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tool-chip .icon { width: 12px; height: 12px; color: var(--green); }
+
+    /* ---------- section scaffolding ---------- */
+    section { position: relative; }
+    .band { padding: 84px 0; border-top: 1px solid var(--border); }
+    .kicker { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--blue); }
+    h2 { font-size: clamp(26px, 3.4vw, 38px); line-height: 1.12; font-weight: 800; letter-spacing: -.02em; margin: 12px 0 0; }
+    .section-sub { color: var(--muted); font-size: 16px; margin: 14px 0 0; max-width: 620px; }
+    .center { text-align: center; margin: 0 auto; }
+    .center .section-sub { margin-left: auto; margin-right: auto; }
+
+    /* ---------- works-with strip ---------- */
+    .works { display: flex; align-items: center; justify-content: center; gap: 14px 30px; flex-wrap: wrap; margin-top: 30px; }
+    .works .label { font-size: 13px; color: var(--faint); font-weight: 600; }
+    .pill { display: inline-flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; color: var(--text); opacity: .85; padding: 9px 16px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); transition: opacity .2s, border-color .2s; }
+    .pill:hover { opacity: 1; border-color: var(--border-2); }
+    .pill .icon { width: 17px; height: 17px; color: var(--blue); }
+
+    /* ---------- steps ---------- */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 48px; }
+    @media (max-width: 820px){ .steps { grid-template-columns: 1fr; } }
+    .step { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 26px; position: relative; transition: border-color .2s, transform .2s; }
+    .step:hover { border-color: var(--border-2); transform: translateY(-3px); }
+    .step .num { font-size: 13px; font-weight: 800; color: var(--blue); letter-spacing: .1em; }
+    .step .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin: 14px 0 16px; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25); }
+    .step .ico .icon { width: 22px; height: 22px; color: var(--blue); }
+    .step h3 { font-size: 18px; font-weight: 700; }
+    .step p { color: var(--muted); font-size: 14.5px; margin-top: 8px; }
+
+    /* ---------- capabilities ---------- */
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 48px; }
+    @media (max-width: 920px){ .feat-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px){ .feat-grid { grid-template-columns: 1fr; } }
+    .feat { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: border-color .2s, background .2s; }
+    .feat:hover { border-color: var(--border-2); background: var(--surface-2); }
+    .feat .ico { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 15px; background: rgba(148,163,184,.07); border: 1px solid var(--border); }
+    .feat .ico .icon { width: 20px; height: 20px; color: var(--blue); }
+    .feat h3 { font-size: 16.5px; font-weight: 700; }
+    .feat p { color: var(--muted); font-size: 14px; margin-top: 7px; }
+
+    /* ---------- security ---------- */
+    .sec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    @media (max-width: 820px){ .sec-grid { grid-template-columns: 1fr; gap: 32px; } }
+    .sec-list { display: flex; flex-direction: column; gap: 16px; margin-top: 28px; }
+    .sec-item { display: flex; gap: 14px; align-items: flex-start; }
+    .sec-item .ico { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: rgba(52,211,153,.10); border: 1px solid rgba(52,211,153,.25); }
+    .sec-item .ico .icon { width: 19px; height: 19px; color: var(--green); }
+    .sec-item h4 { font-size: 15.5px; font-weight: 700; }
+    .sec-item p { color: var(--muted); font-size: 14px; margin-top: 3px; }
+    .sec-card { background: linear-gradient(180deg, var(--surface), var(--bg)); border: 1px solid var(--border-2); border-radius: 18px; padding: 30px; }
+    .sec-card .big { display: flex; align-items: center; gap: 14px; }
+    .sec-card .shield { width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.3); }
+    .sec-card .shield .icon { width: 28px; height: 28px; color: var(--blue); }
+    .sec-card .big h3 { font-size: 19px; font-weight: 800; }
+    .sec-card .big p { font-size: 13px; color: var(--faint); }
+    .sec-card .rule { height: 1px; background: var(--border); margin: 22px 0; }
+    .sec-card .mini { display: flex; justify-content: space-between; font-size: 13.5px; padding: 7px 0; }
+    .sec-card .mini .k { color: var(--muted); }
+    .sec-card .mini .v { font-weight: 700; color: var(--green); display: inline-flex; align-items: center; gap: 6px; }
+    .sec-card .mini .v .icon { width: 14px; height: 14px; }
+
+    /* ---------- final cta ---------- */
+    .final { text-align: center; padding: 96px 0; position: relative; overflow: hidden; }
+    .final::before { content:""; position:absolute; inset:0; z-index:0; background: radial-gradient(620px 260px at 50% 0%, rgba(59,130,246,.18), transparent 70%); pointer-events:none; }
+    .final .inner { position: relative; z-index: 1; }
+    .final h2 { font-size: clamp(28px, 4vw, 44px); }
+    .final .section-sub { margin: 18px auto 0; }
+    .final .cta-row { justify-content: center; margin-top: 34px; }
+    .final .note { margin-top: 18px; font-size: 13px; color: var(--faint); }
+
+    /* ---------- footer ---------- */
+    footer { border-top: 1px solid var(--border); padding: 36px 0; }
+    .foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+    .foot-inner .brand small { color: var(--faint); }
+    .foot-links { display: flex; gap: 22px; }
+    .foot-links a { color: var(--faint); font-size: 13.5px; font-weight: 600; transition: color .2s; }
+    .foot-links a:hover { color: var(--text); }
+    .contact { width: 100%; font-size: 13.5px; color: var(--muted); margin-top: 26px; }
+    .contact a { color: var(--blue); font-weight: 600; }
+    .contact a:hover { text-decoration: underline; }
+    .copy { width: 100%; font-size: 12.5px; color: var(--faint); border-top: 1px solid var(--border); margin-top: 22px; padding-top: 22px; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== NAV ===== -->
+  <nav>
+    <div class="wrap nav-inner">
+      <a class="brand" href="/">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>WealthAgent<small>TEXAS NET WORTH</small></span>
+      </a>
+      <div class="nav-links">
+        <a class="lnk" href="#how">How it works</a>
+        <a class="lnk" href="#capabilities">Capabilities</a>
+        <a class="lnk" href="#security">Security</a>
+        <a class="btn btn-primary" href="https://app.texasnetworth.com">
+          Open app
+          <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== HERO ===== -->
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><span class="dot"></span> Your money. Your AI. Your rules.</span>
+        <h1>Give your AI agent a <span class="grad">live view</span> of your entire financial life.</h1>
+        <p class="lede">
+          Aggregate every bank, brokerage, card, and loan into one secure endpoint — then let
+          the AI you already trust read it. Net worth, capital gains, spending, tax prep:
+          just ask. Powered by Plaid, served over MCP.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://app.texasnetworth.com">
+            Connect your AI
+            <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="#how">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            See how it works
+          </a>
+        </div>
+        <div class="trust">
+          <span><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Powered by Plaid</span>
+          <span><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Read-only access</span>
+          <span><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> Encrypted &amp; revocable</span>
+        </div>
+      </div>
+
+      <!-- chat mockup -->
+      <div class="mock">
+        <div class="mock-bar">
+          <span class="d"></span><span class="d"></span><span class="d"></span>
+          <span class="t">your AI agent · connected to WealthAgent</span>
+        </div>
+        <div class="mock-body">
+          <div class="bubble user">What's my net worth and how did my portfolio do this quarter?</div>
+          <div class="bubble ai">
+            <div class="who">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-1 8 4 4 0 0 1-6 0 4 4 0 0 1-1-8V6a4 4 0 0 1 4-4z"/></svg>
+              Agent
+            </div>
+            <div class="stat-line"><span class="k">Net worth</span><span class="v">$1,284,610</span></div>
+            <div class="stat-line"><span class="k">Assets · 7 accounts</span><span class="v">$1,512,940</span></div>
+            <div class="stat-line"><span class="k">Liabilities · 3 accounts</span><span class="v">$228,330</span></div>
+            <div class="stat-line"><span class="k">Q2 portfolio return</span><span class="v pos">+6.4%</span></div>
+            <div class="tool-chip"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> wealth_accounts_list · wealth_gains</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== WORKS WITH ===== -->
+  <section class="band" style="padding:48px 0;">
+    <div class="wrap">
+      <div class="works">
+        <span class="label">Works with any MCP client —</span>
+        <span class="pill"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg> Claude</span>
+        <span class="pill"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ChatGPT</span>
+        <span class="pill"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg> Gemini</span>
+        <span class="pill"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg> Cursor &amp; more</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== HOW IT WORKS ===== -->
+  <section class="band" id="how">
+    <div class="wrap">
+      <div class="center">
+        <span class="kicker">How it works</span>
+        <h2>Connected in three steps.</h2>
+        <p class="section-sub center">No data exports, no spreadsheets, no copy-pasting balances into a chat window. Link once, hand your agent a key, and ask away.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="num">STEP 01</span>
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+          <h3>Link your accounts</h3>
+          <p>Connect banks, brokerages, credit cards, and loans through Plaid. Everything aggregates into one continuously-synced picture of your finances.</p>
+        </div>
+        <div class="step">
+          <span class="num">STEP 02</span>
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 9-9M16 4l3 3-2 2"/></svg></div>
+          <h3>Mint a key for your agent</h3>
+          <p>Generate a scoped access token in the <strong>Connect your AI</strong> tab and drop it into your agent's MCP config. One paste — done.</p>
+        </div>
+        <div class="step">
+          <span class="num">STEP 03</span>
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <h3>Just ask</h3>
+          <p>"What did I spend on travel last month?" "What are my realized gains this year?" Your AI answers from live, real data — not guesses.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CAPABILITIES ===== -->
+  <section class="band" id="capabilities">
+    <div class="wrap">
+      <div class="center">
+        <span class="kicker">What your agent can do</span>
+        <h2>One key. The whole financial toolbox.</h2>
+        <p class="section-sub center">Every capability is exposed as an MCP tool your agent can call directly — read-only by default.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
+          <h3>Net worth &amp; portfolio</h3>
+          <p>Assets, liabilities, holdings breakdown, and performance over any range — at a glance or on demand.</p>
+        </div>
+        <div class="feat">
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+          <h3>Transaction search</h3>
+          <p>Filter, search, tag, and annotate every transaction across accounts. Your agent does the digging.</p>
+        </div>
+        <div class="feat">
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6"/></svg></div>
+          <h3>Capital gains &amp; tax</h3>
+          <p>FIFO realized gains, cost-basis overrides, and deductible tagging — tax season without the shoebox.</p>
+        </div>
+        <div class="feat">
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <h3>Spending insights</h3>
+          <p>Ask where the money went by category, merchant, or month. Real numbers, instant answers.</p>
+        </div>
+        <div class="feat">
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M21 2 13 10M21 2l-6 18-4-8-8-4z"/></svg></div>
+          <h3>Live sync on demand</h3>
+          <p>Tell your agent to pull the latest from your institutions before it answers — always current.</p>
+        </div>
+        <div class="feat">
+          <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+          <h3>Rename &amp; organize</h3>
+          <p>Give accounts human nicknames; your agent uses them so its answers read like you talk.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SECURITY ===== -->
+  <section class="band" id="security">
+    <div class="wrap sec-grid">
+      <div>
+        <span class="kicker">Built for trust</span>
+        <h2>Your data stays yours.</h2>
+        <p class="section-sub">The whole point is access without surrender. You decide which agents connect, what they can touch, and you cut them off in one click.</p>
+        <div class="sec-list">
+          <div class="sec-item">
+            <div class="ico"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+            <div><h4>Read-only by default</h4><p>Agents see your data; they can't move money or change your accounts.</p></div>
+          </div>
+          <div class="sec-item">
+            <div class="ico"><svg class="icon" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 9-9M16 4l3 3-2 2"/></svg></div>
+            <div><h4>Keys you control</h4><p>Mint a token per agent, see when each was last used, and revoke any of them instantly.</p></div>
+          </div>
+          <div class="sec-item">
+            <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <div><h4>Encrypted &amp; never sold</h4><p>Credentials are handled by Plaid and stored encrypted. Your financial data never trains a model and is never sold.</p></div>
+          </div>
+          <div class="sec-item">
+            <div class="ico"><svg class="icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg></div>
+            <div><h4>Invite-only</h4><p>Access is gated to approved accounts while we're early. No open sign-ups, no scraping.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-card">
+        <div class="big">
+          <div class="shield"><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div>
+            <h3>Connected agents</h3>
+            <p>You're always in control</p>
+          </div>
+        </div>
+        <div class="rule"></div>
+        <div class="mini"><span class="k">Access scope</span><span class="v"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> read-only</span></div>
+        <div class="mini"><span class="k">Token rotation</span><span class="v"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> anytime</span></div>
+        <div class="mini"><span class="k">Revoke access</span><span class="v"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> one click</span></div>
+        <div class="mini"><span class="k">Data resale</span><span class="v" style="color:var(--green)"><svg class="icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg> never</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FINAL CTA ===== -->
+  <section class="final">
+    <div class="wrap inner">
+      <span class="kicker">Ready when you are</span>
+      <h2>Stop pasting balances into a chat box.</h2>
+      <p class="section-sub center">Connect your accounts once and give your AI agent the full picture — securely, on your terms.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://app.texasnetworth.com">
+          Connect your AI
+          <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a class="btn btn-ghost" href="#how">Learn more</a>
+      </div>
+      <p class="note">Currently invite-only · Powered by Plaid · MCP over HTTPS</p>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div class="wrap">
+      <div class="foot-inner">
+        <a class="brand" href="/">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>WealthAgent<small>TEXAS NET WORTH</small></span>
+        </a>
+        <div class="foot-links">
+          <a href="#how">How it works</a>
+          <a href="#capabilities">Capabilities</a>
+          <a href="#security">Security</a>
+          <a href="mailto:support@texasnetworth.com">Contact</a>
+          <a href="https://app.texasnetworth.com">Open app</a>
+        </div>
+      </div>
+      <div class="contact">Questions or want an invite? Email <a href="mailto:support@texasnetworth.com">support@texasnetworth.com</a>.</div>
+      <div class="copy">© 2026 Texas Net Worth · WealthAgent. All rights reserved. Bank data aggregated via Plaid. Not financial advice.</div>
+    </div>
+  </footer>
+
+</body>
+</html>

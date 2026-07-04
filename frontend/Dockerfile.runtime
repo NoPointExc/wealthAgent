@@ -1,0 +1,13 @@
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ .
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+RUN npm run build
+
+FROM caddy:2-alpine
+COPY --from=builder /app/dist /srv/wealthagent
+# Standalone marketing site served on www/apex (see Caddyfile).
+COPY frontend/landing /srv/landing

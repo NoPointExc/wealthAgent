@@ -1,0 +1,46 @@
+# Apex redirects to www so there's a single canonical marketing URL.
+texasnetworth.com {
+	tls support@texasnetworth.com
+	redir https://www.texasnetworth.com{uri} permanent
+}
+
+# Marketing landing page (standalone static site, no backend).
+www.texasnetworth.com {
+	tls support@texasnetworth.com
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	root * /srv/landing
+	try_files {path} /index.html
+	file_server
+}
+
+app.texasnetworth.com {
+	tls support@texasnetworth.com
+
+	# Security headers applied to all responses
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com https://cdn.plaid.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://accounts.google.com https://production.plaid.com; frame-src https://cdn.plaid.com; font-src 'self'"
+		-Server
+	}
+
+	route {
+		@backend path_regexp ^(/api/|/mcp$|/authorize$|/token$|/register$|/\.well-known/oauth)
+		reverse_proxy @backend backend:8080
+
+		root * /srv/wealthagent
+		try_files {path} /index.html
+		file_server
+	}
+}

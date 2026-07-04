@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  padding: 0;
+  @apply bg-slate-950 text-slate-100 font-sans antialiased;
+}
+
+.active-tab {
+  @apply bg-slate-800 text-slate-100 border-l-4 border-blue-500;
+}
+
+.active-account {
+  @apply border-blue-500 bg-slate-800 ring-1 ring-blue-500;
+}
+
+.holdings-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.holdings-scroll::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.holdings-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
