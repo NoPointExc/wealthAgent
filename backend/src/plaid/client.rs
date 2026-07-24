@@ -99,6 +99,24 @@ impl PlaidClient {
         Ok(res.link_token)
     }
 
+    /// Sandbox only: mint a public_token for a pre-canned sandbox institution
+    /// without going through Link. Used by `admin demo seed` to build the demo
+    /// template. `institution_id` defaults to `ins_109512` (First Platypus
+    /// Bank, which carries both transactions and investments sandbox data).
+    pub async fn sandbox_create_public_token(
+        &self,
+        institution_id: &str,
+        products: &[&str],
+    ) -> Result<String, AppError> {
+        let body = json!({
+            "institution_id": institution_id,
+            "initial_products": products,
+        });
+        let res: SandboxPublicTokenCreateResponse =
+            self.post("/sandbox/public_token/create", body).await?;
+        Ok(res.public_token)
+    }
+
     pub async fn exchange_public_token(&self, public_token: &str) -> Result<String, AppError> {
         let body = json!({
             "public_token": public_token

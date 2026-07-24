@@ -187,34 +187,43 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Self, Self::Rejection> {
-        // 1. Authorization: Bearer …
-        if let Some(bearer) = extract_bearer(parts) {
-            // 1a. Personal access token (wa_pat_…)
-            if bearer.starts_with("wa_pat_") {
-                return authenticate_pat(&bearer, state).await;
-            }
-            // 1b. OAuth access token (JWT, audience-bound to the MCP resource)
-            let aud = format!("{}/mcp", state.public_url);
-            if let Ok(claims) = verify_access_jwt(&bearer, &state.jwt_secret, &aud) {
-                // Record grant activity (best-effort, off the request path).
-                let pool = state.pool.clone();
-                let (uid, cid) = (claims.sub.clone(), claims.client_id.clone());
-                tokio::spawn(async move {
-                    let _ = crate::db::oauth_touch_grant(&pool, &uid, &cid).await;
-                });
-                return Ok(AuthUser {
-                    user_id: claims.sub,
-                    claims: None,
-                    token_id: None,
-                    scopes: claims.scope, // already comma-delimited internal form
-                    privacy_secret: None,
-                });
-            }
-            // Unrecognised bearer — fall through to cookie auth below.
-        }
-        // 2. Fall back to cookie
-        authenticate_cookie(parts, state)
+        let user = resolve_user(parts, state).await?;
+        // Paywall chokepoint (no-op unless BILLING=on): every auth flavor —
+        // cookie, PAT, OAuth/MCP — passes through here, so gating once covers
+        // all protected routes. 402 for unpaid users outside the billing/auth surface.
+        crate::billing::enforce_entitlement(state, &user.user_id, parts.uri.path()).await?;
+        Ok(user)
     }
+}
+
+async fn resolve_user(parts: &Parts, state: &Arc<AppState>) -> Result<AuthUser, AppError> {
+    // 1. Authorization: Bearer …
+    if let Some(bearer) = extract_bearer(parts) {
+        // 1a. Personal access token (wa_pat_…)
+        if bearer.starts_with("wa_pat_") {
+            return authenticate_pat(&bearer, state).await;
+        }
+        // 1b. OAuth access token (JWT, audience-bound to the MCP resource)
+        let aud = format!("{}/mcp", state.public_url);
+        if let Ok(claims) = verify_access_jwt(&bearer, &state.jwt_secret, &aud) {
+            // Record grant activity (best-effort, off the request path).
+            let pool = state.pool.clone();
+            let (uid, cid) = (claims.sub.clone(), claims.client_id.clone());
+            tokio::spawn(async move {
+                let _ = crate::db::oauth_touch_grant(&pool, &uid, &cid).await;
+            });
+            return Ok(AuthUser {
+                user_id: claims.sub,
+                claims: None,
+                token_id: None,
+                scopes: claims.scope, // already comma-delimited internal form
+                privacy_secret: None,
+            });
+        }
+        // Unrecognised bearer — fall through to cookie auth below.
+    }
+    // 2. Fall back to cookie
+    authenticate_cookie(parts, state)
 }
 
 fn extract_bearer(parts: &Parts) -> Option<String> {
@@ -285,6 +294,9 @@ impl FromRequestParts<Arc<AppState>> for McpAuthUser {
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Self, Self::Rejection> {
         match AuthUser::from_request_parts(parts, state).await {
             Ok(user) => Ok(McpAuthUser(user)),
+            // An unpaid-but-authenticated caller must get the 402, not a 401
+            // challenge — re-running the OAuth flow would never fix payment.
+            Err(e @ AppError::PaymentRequired(_)) => Err(e.into_response()),
             Err(_) => {
                 let metadata_url = format!("{}/.well-known/oauth-protected-resource", state.public_url);
                 let challenge = format!("Bearer resource_metadata=\"{metadata_url}\"");

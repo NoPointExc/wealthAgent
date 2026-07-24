@@ -15,6 +15,12 @@ async function apiFetch(url: string, options: RequestInit = {}): Promise<Respons
     window.dispatchEvent(new CustomEvent('auth:expired'));
     throw new Error('Session expired');
   }
+  if (res.status === 402) {
+    // Paywalled deployment and this account has no active subscription —
+    // App listens for this and swaps in the paywall view.
+    window.dispatchEvent(new CustomEvent('billing:required'));
+    throw new Error('Subscription required');
+  }
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
@@ -48,7 +54,73 @@ export interface PrivacySetupResult {
   note: string;
 }
 
+export interface AppConfig {
+  /** Public no-login demo instance: Google login + bank linking disabled. */
+  demo_mode: boolean;
+  /** Server-side PRIVACY_ENCRYPTION flag. */
+  privacy_enabled: boolean;
+  /** Server-side BILLING flag: subscription paywall active. */
+  billing_enabled: boolean;
+}
+
+export interface BillingStatus {
+  /** Server-side BILLING flag; when false, entitled is always true. */
+  enabled: boolean;
+  /** This user may use the app (subscriber, owner, or billing disabled). */
+  entitled: boolean;
+  /** Stripe subscription status ('none' until first checkout). */
+  status: string;
+  /** A Stripe customer exists — the portal is available. */
+  has_customer: boolean;
+  /** Paid-through timestamp (RFC3339) or null. */
+  current_period_end: string | null;
+}
+
 export const apiClient = {
+  async getConfig(): Promise<AppConfig> {
+    const res = await apiFetch(`${API_BASE}/config`);
+    return res.json();
+  },
+
+  async demoLogin(): Promise<{ user: AuthUser }> {
+    const res = await fetch(`${API_BASE}/auth/demo`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      let detail = 'Could not start the demo';
+      try {
+        const body = await res.json();
+        if (body.message) detail = body.message;
+      } catch { /* non-JSON error body */ }
+      throw new Error(detail);
+    }
+    return res.json();
+  },
+
+  async getBillingStatus(): Promise<BillingStatus> {
+    const res = await apiFetch(`${API_BASE}/billing/status`);
+    return res.json();
+  },
+
+  /** Create a Stripe Checkout session; caller redirects to the returned URL. */
+  async billingCheckout(plan: 'monthly' | 'annual'): Promise<string> {
+    const res = await apiFetch(`${API_BASE}/billing/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    const json = await res.json();
+    return json.url;
+  },
+
+  /** Create a Stripe Customer Portal session; caller redirects to the URL. */
+  async billingPortal(): Promise<string> {
+    const res = await apiFetch(`${API_BASE}/billing/portal`, { method: 'POST' });
+    const json = await res.json();
+    return json.url;
+  },
+
   async googleLogin(credential: string): Promise<{ user: AuthUser }> {
     const res = await fetch(`${API_BASE}/auth/google`, {
       method: 'POST',

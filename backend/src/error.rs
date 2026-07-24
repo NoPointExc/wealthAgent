@@ -15,6 +15,8 @@ pub enum AppError {
     Unauthorized,
     Forbidden(String),
     TooManyRequests(String),
+    /// 402 — authenticated but no active subscription (BILLING=on paywall).
+    PaymentRequired(String),
 }
 
 impl fmt::Display for AppError {
@@ -27,6 +29,7 @@ impl fmt::Display for AppError {
             AppError::Unauthorized => write!(f, "Unauthorized"),
             AppError::Forbidden(msg) => write!(f, "Forbidden: {}", msg),
             AppError::TooManyRequests(msg) => write!(f, "Too Many Requests: {}", msg),
+            AppError::PaymentRequired(msg) => write!(f, "Payment Required: {}", msg),
         }
     }
 }
@@ -43,6 +46,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
+            AppError::PaymentRequired(msg) => (StatusCode::PAYMENT_REQUIRED, msg),
         };
 
         let body = Json(json!({

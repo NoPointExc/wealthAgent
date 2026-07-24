@@ -15,6 +15,12 @@ pub struct ItemPublicTokenExchangeResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct SandboxPublicTokenCreateResponse {
+    pub public_token: String,
+    pub request_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PlaidAccount {
     pub account_id: String,
     pub balances: PlaidBalances,

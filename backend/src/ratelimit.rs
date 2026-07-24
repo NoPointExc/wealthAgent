@@ -102,6 +102,8 @@ pub struct Limiters {
     pub token: RateLimiter,
     /// OAuth dynamic client registrations per IP.
     pub register: RateLimiter,
+    /// Demo-session creations per IP (demo instance only).
+    pub demo: RateLimiter,
 }
 
 impl Limiters {
@@ -111,6 +113,7 @@ impl Limiters {
             google: RateLimiter::new(10, Duration::from_secs(60)),
             token: RateLimiter::new(30, Duration::from_secs(60)),
             register: RateLimiter::new(5, Duration::from_secs(60 * 60)),
+            demo: RateLimiter::new(3, Duration::from_secs(60 * 60)),
         }
     }
 }
@@ -158,6 +161,16 @@ mod tests {
         assert!(fl.blocked("u1").await);
         fl.clear("u1").await;
         assert!(!fl.blocked("u1").await);
+    }
+
+    #[tokio::test]
+    async fn demo_limiter_allows_three_per_ip() {
+        let l = Limiters::new();
+        assert!(l.demo.allow("ip1").await);
+        assert!(l.demo.allow("ip1").await);
+        assert!(l.demo.allow("ip1").await);
+        assert!(!l.demo.allow("ip1").await); // 4th within the hour rejected
+        assert!(l.demo.allow("ip2").await); // other IPs unaffected
     }
 
     #[test]

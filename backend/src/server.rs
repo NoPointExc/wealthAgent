@@ -19,13 +19,12 @@ use tracing_subscriber::{fmt, EnvFilter};
 use crate::plaid::client::PlaidClient;
 use crate::{encryption, error::AppError, handlers::*, mcp, models, oauth, privacy, AppState};
 
-pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    dotenvy::dotenv().ok();
-
-    fmt().json()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
-
+/// Build the shared application state: DB pool + migrations + all env-derived
+/// config and the Plaid client. Extracted from `run` so the admin CLI
+/// (`cli::run`) can construct the same state to reuse the Plaid/sync code path
+/// when seeding the demo template. Also seeds owner invites and runs the
+/// optional mock purge — the same side effects the server needs on boot.
+pub async fn build_state() -> Result<Arc<AppState>, Box<dyn std::error::Error>> {
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -53,8 +52,6 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let google_client_id = std::env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set");
-    let allowed_origin = std::env::var("ALLOWED_ORIGIN")
-        .unwrap_or_else(|_| "http://localhost:5173".to_string());
     let encryption_key = encryption::load_encryption_key()
         .expect("Failed to load APP_ENCRYPTION_KEY_PATH — run: openssl rand -base64 32 > /etc/wealthagent/keyfile");
 
@@ -71,7 +68,28 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("Privacy encryption enabled — users can opt into operator-blind storage");
     }
 
-    let state = Arc::new(AppState {
+    let demo_mode = matches!(
+        std::env::var("DEMO_MODE").as_deref(),
+        Ok("on") | Ok("true") | Ok("1")
+    );
+    if demo_mode {
+        tracing::info!("DEMO_MODE enabled — public no-login demo instance (Google login + bank linking disabled, demo users reaped daily)");
+    }
+
+    let billing = crate::billing::BillingConfig::from_env();
+    if billing.is_some() {
+        tracing::info!("BILLING enabled — Stripe subscription paywall active (open signup, unpaid users gated)");
+    }
+
+    let dev_login = matches!(
+        std::env::var("DEV_LOGIN").as_deref(),
+        Ok("on") | Ok("true") | Ok("1")
+    );
+    if dev_login {
+        tracing::warn!("DEV_LOGIN enabled — /api/auth/dev_login mints test sessions without Google. NEVER use on a real deployment.");
+    }
+
+    Ok(Arc::new(AppState {
         pool,
         plaid: PlaidClient::new(),
         jwt_secret,
@@ -80,10 +98,26 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         encryption_key,
         public_url,
         privacy_enabled,
+        demo_mode,
+        billing,
+        dev_login,
         unlocked_keys: privacy::KeyCache::new(),
         active_syncs: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         limiters: crate::ratelimit::Limiters::new(),
-    });
+    }))
+}
+
+pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
+    fmt().json()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .init();
+
+    let allowed_origin = std::env::var("ALLOWED_ORIGIN")
+        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+
+    let state = build_state().await?;
 
     let cors = CorsLayer::new()
         .allow_origin(allowed_origin.parse::<HeaderValue>().expect("Invalid ALLOWED_ORIGIN"))
@@ -94,7 +128,10 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/api/health", get(|| async { "ok" }))
+        .route("/api/config", get(get_config))
         .route("/api/auth/google", post(auth_google))
+        .route("/api/auth/demo", post(auth_demo))
+        .route("/api/auth/dev_login", get(dev_login))
         .route("/api/auth/refresh", post(refresh_session))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/whoami", get(whoami))
@@ -118,6 +155,10 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/capital_gains/cost_basis/:txn_id", put(set_cost_basis).delete(delete_cost_basis))
         .route("/api/saved_searches", get(get_saved_searches).post(create_saved_search))
         .route("/api/saved_searches/:id", delete(delete_saved_search))
+        .route("/api/billing/status", get(crate::billing::billing_status))
+        .route("/api/billing/checkout", post(crate::billing::billing_checkout))
+        .route("/api/billing/portal", post(crate::billing::billing_portal))
+        .route("/api/billing/webhook", post(crate::billing::billing_webhook))
         .route("/api/privacy/status", get(privacy::privacy_status))
         .route("/api/privacy/setup", post(privacy::privacy_setup))
         .route("/api/privacy/unlock", post(privacy::privacy_unlock))
@@ -135,6 +176,9 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .layer(RequestBodyLimitLayer::new(1 * 1024 * 1024))
         .with_state(Arc::clone(&state));
 
+    if state.demo_mode {
+        tokio::spawn(demo_reaper_task(Arc::clone(&state)));
+    }
     tokio::spawn(daily_sync_task(state));
 
     let bind = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
@@ -185,4 +229,26 @@ async fn sync_all_users(state: &Arc<AppState>) -> Result<usize, AppError> {
         }
     }
     Ok(count)
+}
+
+/// Demo-mode only: hourly, delete ephemeral demo users (`google_id LIKE 'demo:%'`)
+/// older than 24h and all their data. Cloned demo items carry dummy tokens, so
+/// this never calls Plaid `/item/remove`. The `demo-template` user is excluded
+/// by the `demo:%` pattern so it survives and keeps getting refreshed by
+/// `daily_sync_task`.
+async fn demo_reaper_task(state: Arc<AppState>) {
+    const TTL_HOURS: i64 = 24;
+    loop {
+        match crate::db::reap_demo_users(&state.pool, TTL_HOURS).await {
+            Ok(ids) if !ids.is_empty() => {
+                for id in &ids {
+                    state.unlocked_keys.remove(id).await;
+                }
+                tracing::info!(reaped = ids.len(), "Demo reaper removed expired demo users");
+            }
+            Ok(_) => {}
+            Err(e) => tracing::error!("Demo reaper failed: {}", e),
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+    }
 }

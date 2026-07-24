@@ -439,6 +439,9 @@ async fn tool_accounts_rename(state: &Arc<AppState>, auth: &AuthUser, id: Option
 }
 
 async fn tool_sync(state: &Arc<AppState>, auth: &AuthUser, id: Option<Value>) -> McpResponse {
+    if state.demo_mode {
+        return tool_err(id, "Sync is disabled in the demo — data refreshes automatically.");
+    }
     let items = match db::get_user_plaid_items(&state.pool, &auth.user_id).await {
         Ok(v) => v,
         Err(e) => return tool_err(id, e),

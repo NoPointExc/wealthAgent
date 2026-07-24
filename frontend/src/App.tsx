@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { apiClient } from './api/client';
+import type { BillingStatus } from './api/client';
 import { usePrivacy } from './context/PrivacyContext';
+import { useConfig } from './context/ConfigContext';
 import Sidebar from './components/Sidebar';
 import PortfolioView from './views/PortfolioView';
 import TransactionsView from './views/TransactionsView';
 import TaxView from './views/TaxView';
 import ConnectView from './views/ConnectView';
 import LoginView from './views/LoginView';
+import PaywallView from './views/PaywallView';
 import ProfileDropdown from './components/ProfileDropdown';
 import PlaidOAuthResume from './components/PlaidOAuthResume';
 import PrivacyLockButton, { PrivacyGate } from './components/PrivacyLockButton';
@@ -20,6 +23,20 @@ export interface AuthUser {
 }
 
 const App: React.FC = () => {
+  // Dev-login bootstrap (local testing only): a GET /api/auth/dev_login redirect
+  // lands here with the user JSON in ?dev_user= (the session cookie is already
+  // set). Seed the localStorage hint the SPA uses so we render logged-in, then
+  // strip the param. No-op in normal use where the param is absent.
+  (() => {
+    const sp = new URLSearchParams(window.location.search);
+    const du = sp.get('dev_user');
+    if (!du) return;
+    try { localStorage.setItem('wealth_agent_user', du); } catch { /* ignore */ }
+    sp.delete('dev_user');
+    const qs = sp.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  })();
+
   // 'settings' was merged into the Connect tab ('advisory'); migrate any stale stored value.
   const initialTab = (() => {
     const stored = localStorage.getItem('wealth_agent_tab');
@@ -56,6 +73,67 @@ const App: React.FC = () => {
     const raw = localStorage.getItem('wealth_agent_user');
     return raw ? JSON.parse(raw) : null;
   });
+
+  // Runtime deployment config (so one frontend image serves prod and demo).
+  const { demoMode, billingEnabled } = useConfig();
+
+  // Subscription paywall (BILLING=on deployments). null = status not loaded yet.
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  // Just returned from Stripe Checkout — poll until the webhook confirms.
+  const [activating, setActivating] = useState(
+    () => new URLSearchParams(window.location.search).get('billing') === 'success'
+  );
+
+  useEffect(() => {
+    if (!isLoggedIn || !billingEnabled) return;
+    let cancelled = false;
+    const load = async (): Promise<BillingStatus | null> => {
+      try {
+        const s = await apiClient.getBillingStatus();
+        if (!cancelled) setBilling(s);
+        return s;
+      } catch {
+        return null;
+      }
+    };
+    if (!activating) {
+      load();
+      return () => { cancelled = true; };
+    }
+    // Post-checkout: subscription state arrives via webhook, so poll briefly
+    // even if the user paid and the tab raced the webhook.
+    (async () => {
+      for (let i = 0; i < 15 && !cancelled; i++) {
+        const s = await load();
+        if (s?.entitled) break;
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      if (!cancelled) {
+        setActivating(false);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLoggedIn, billingEnabled, activating]);
+
+  // Any API call that 402s flips us to the paywall (e.g. subscription lapsed
+  // while the tab was open).
+  useEffect(() => {
+    const onRequired = () => setBilling(b =>
+      b ? { ...b, entitled: false }
+        : { enabled: true, entitled: false, status: 'none', has_customer: false, current_period_end: null }
+    );
+    window.addEventListener('billing:required', onRequired);
+    return () => window.removeEventListener('billing:required', onRequired);
+  }, []);
+
+  const openBillingPortal = useCallback(async () => {
+    try {
+      window.location.href = await apiClient.billingPortal();
+    } catch (e) {
+      console.error('Could not open billing portal', e);
+    }
+  }, []);
 
   // OAuth consent bridge: the backend /authorize endpoint bounces unauthenticated
   // (or cross-site first-hop) requests here with `_consent=1` and the original
@@ -108,7 +186,32 @@ const App: React.FC = () => {
   }, [consentTarget, isLoggedIn]);
 
   if (!isLoggedIn) {
-    return <LoginView onLogin={handleLogin} postLoginRedirect={consentTarget ?? undefined} />;
+    return <LoginView onLogin={handleLogin} postLoginRedirect={consentTarget ?? undefined} demoMode={demoMode} />;
+  }
+
+  // Subscription gate (BILLING=on deployments; demo instances are never gated).
+  if (billingEnabled && !demoMode) {
+    if (activating) {
+      return (
+        <PaywallView
+          user={user}
+          billing={billing ?? { enabled: true, entitled: false, status: 'none', has_customer: false, current_period_end: null }}
+          activating
+          onLogout={handleLogout}
+        />
+      );
+    }
+    if (!billing) {
+      // Don't flash the dashboard (and fire a burst of 402s) before we know.
+      return (
+        <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400 text-sm">
+          Loading…
+        </div>
+      );
+    }
+    if (!billing.entitled) {
+      return <PaywallView user={user} billing={billing} onLogout={handleLogout} />;
+    }
   }
 
   if (consentTarget) {
@@ -137,6 +240,19 @@ const App: React.FC = () => {
       <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
 
       <main className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-y-auto">
+        {demoMode && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs font-medium px-8 py-2 text-center shrink-0">
+            Demo · sample data from Plaid Sandbox — resets daily. Bank linking and sync are disabled.
+          </div>
+        )}
+        {billingEnabled && billing?.status === 'past_due' && (
+          <div className="bg-rose-500/15 border-b border-rose-500/30 text-rose-200 text-xs font-medium px-8 py-2 text-center shrink-0">
+            Your last payment failed — access ends at the period end unless it's fixed.{' '}
+            <button onClick={openBillingPortal} className="underline font-bold hover:text-rose-100">
+              Update payment method
+            </button>
+          </div>
+        )}
         <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur px-8 flex items-center justify-between shrink-0 sticky top-0 z-30">
           <h2 className="text-lg font-semibold text-slate-200">{titles[activeTab]}</h2>
           <div className="flex items-center gap-3">
@@ -154,7 +270,7 @@ const App: React.FC = () => {
               {hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               {hidden ? 'Amounts hidden' : 'Amounts shown'}
             </button>
-            {activeTab === 'portfolio' && (
+            {activeTab === 'portfolio' && !demoMode && (
               <button
                 onClick={handleManualSync}
                 disabled={syncing}
@@ -168,6 +284,8 @@ const App: React.FC = () => {
               user={user}
               onRefreshNeeded={() => setRefreshKey(k => k + 1)}
               onLogout={handleLogout}
+              demoMode={demoMode}
+              onManageBilling={billingEnabled && billing?.has_customer ? openBillingPortal : undefined}
             />
           </div>
         </header>

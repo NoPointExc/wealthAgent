@@ -9,13 +9,16 @@ interface Props {
   /** If set, navigate here after a successful login instead of entering the app
    *  (used by the OAuth consent bridge to return to /authorize). */
   postLoginRedirect?: string;
+  /** Demo instance: replace Google sign-in with a one-click "Try the demo". */
+  demoMode?: boolean;
 }
 
 const SUPPORT_EMAIL = 'support@texasnetworth.com';
 
-const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect }) => {
+const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect, demoMode }) => {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const copyEmail = async () => {
     try {
@@ -49,20 +52,37 @@ const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect }) => {
     );
   };
 
+  const enterApp = (user: unknown) => {
+    // Cookie is set by the server (HttpOnly) — only store display info locally
+    localStorage.setItem('wealth_agent_user', JSON.stringify(user));
+    if (postLoginRedirect) {
+      window.location.replace(postLoginRedirect);
+      return;
+    }
+    onLogin();
+  };
+
   const handleSuccess = async (response: CredentialResponse) => {
     if (!response.credential) return;
     setError(null);
     try {
       const data = await apiClient.googleLogin(response.credential);
-      // Cookie is set by the server (HttpOnly) — only store display info locally
-      localStorage.setItem('wealth_agent_user', JSON.stringify(data.user));
-      if (postLoginRedirect) {
-        window.location.replace(postLoginRedirect);
-        return;
-      }
-      onLogin();
+      enterApp(data.user);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Login failed');
+    }
+  };
+
+  const handleDemo = async () => {
+    setError(null);
+    setDemoLoading(true);
+    try {
+      const data = await apiClient.demoLogin();
+      enterApp(data.user);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not start the demo');
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -74,17 +94,34 @@ const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect }) => {
           <span className="text-2xl font-bold text-slate-100 tracking-wider">WealthAgent</span>
         </div>
         <p className="text-sm text-slate-400 text-center leading-relaxed">
-          Sign in to access your personal wealth dashboard
+          {demoMode
+            ? 'Explore WealthAgent with sample data — no sign-up.'
+            : 'Sign in to access your personal wealth dashboard'}
         </p>
         <div className="w-full flex justify-center">
-          <GoogleLogin
-            onSuccess={handleSuccess}
-            onError={() => console.error('Google login failed')}
-            theme="filled_black"
-            shape="rectangular"
-            size="large"
-          />
+          {demoMode ? (
+            <button
+              onClick={handleDemo}
+              disabled={demoLoading}
+              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-bold text-white rounded-xl transition-all"
+            >
+              {demoLoading ? 'Starting demo…' : 'Try the demo'}
+            </button>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleSuccess}
+              onError={() => console.error('Google login failed')}
+              theme="filled_black"
+              shape="rectangular"
+              size="large"
+            />
+          )}
         </div>
+        {demoMode && (
+          <p className="text-xs text-slate-500 text-center">
+            Sample data from Plaid Sandbox. Your demo account is temporary and resets daily.
+          </p>
+        )}
         {error && (
           <div className="w-full flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-300">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

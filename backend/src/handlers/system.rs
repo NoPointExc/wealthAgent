@@ -13,6 +13,9 @@ pub async fn reset_database(
     // Destructive: wipes all data and revokes Plaid items. Never allow a leaked
     // API token / OAuth grant to do this.
     auth.require_web_session()?;
+    if state.demo_mode {
+        return Err(AppError::Forbidden("Reset is disabled in the demo.".to_string()));
+    }
     let uid = &auth.user_id;
     let pool = &state.pool;
     tracing::warn!(user_id = %uid, "reset_database called");

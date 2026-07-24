@@ -14,6 +14,8 @@ load_secret() {
 load_secret JWT_SECRET
 load_secret PLAID_CLIENT_ID
 load_secret PLAID_SECRET
+load_secret STRIPE_SECRET_KEY
+load_secret STRIPE_WEBHOOK_SECRET
 
 # Construct DATABASE_URL from postgres_password secret if DATABASE_URL is not set directly.
 # Percent-encode chars that are valid in base64 but not in a URL password field.

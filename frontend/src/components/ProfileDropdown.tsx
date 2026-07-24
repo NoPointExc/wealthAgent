@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, ShieldAlert, LogOut } from 'lucide-react';
+import { User, ShieldAlert, LogOut, CreditCard } from 'lucide-react';
 import PlaidLinkButton from './PlaidLinkButton';
 import { apiClient } from '../api/client';
 import type { AuthUser } from '../App';
@@ -8,9 +8,13 @@ interface ProfileDropdownProps {
   user: AuthUser | null;
   onRefreshNeeded: () => void;
   onLogout: () => void;
+  /** Demo instance: hide bank linking and data reset (both are disabled server-side). */
+  demoMode?: boolean;
+  /** BILLING=on with a Stripe customer: opens the Stripe Customer Portal. */
+  onManageBilling?: () => void;
 }
 
-const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onRefreshNeeded, onLogout }) => {
+const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onRefreshNeeded, onLogout, demoMode, onManageBilling }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -53,17 +57,29 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onRefreshNeeded
             <p className="text-xs text-slate-400 mt-0.5 truncate">{user?.email ?? ''}</p>
           </div>
 
-          <div className="py-2">
-            <PlaidLinkButton onSuccess={() => { setIsOpen(false); onRefreshNeeded(); }} />
-          </div>
+          {!demoMode && (
+            <div className="py-2">
+              <PlaidLinkButton onSuccess={() => { setIsOpen(false); onRefreshNeeded(); }} />
+            </div>
+          )}
 
           <div className="border-t border-slate-800 py-2">
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 w-full hover:bg-rose-950/50 text-xs text-rose-400 transition-all text-left"
-            >
-              <ShieldAlert className="w-4 h-4" /> Reset My Data
-            </button>
+            {onManageBilling && (
+              <button
+                onClick={() => { setIsOpen(false); onManageBilling(); }}
+                className="flex items-center gap-2 px-4 py-2 w-full hover:bg-slate-800 text-xs text-slate-300 transition-all text-left"
+              >
+                <CreditCard className="w-4 h-4" /> Manage Billing
+              </button>
+            )}
+            {!demoMode && (
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 px-4 py-2 w-full hover:bg-rose-950/50 text-xs text-rose-400 transition-all text-left"
+              >
+                <ShieldAlert className="w-4 h-4" /> Reset My Data
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 w-full hover:bg-slate-800 text-xs text-slate-400 transition-all text-left"

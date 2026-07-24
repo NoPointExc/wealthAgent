@@ -8,8 +8,10 @@ import BreakdownChart from '../components/BreakdownChart';
 import { Calendar, Layers, TrendingUp, TrendingDown, LayoutDashboard } from 'lucide-react';
 import { getAccountColor } from '../utils/colors';
 import { usePrivacy, MONEY_MASK } from '../context/PrivacyContext';
+import { useConfig } from '../context/ConfigContext';
 
 const PortfolioView: React.FC = () => {
+  const { demoMode } = useConfig();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
@@ -321,7 +323,7 @@ const PortfolioView: React.FC = () => {
             {assetAccounts.map((acc) => (
               <AccountCard key={acc.id} account={acc} isSelected={selectedIds.has(acc.id)} onToggle={toggleAccount} color={accountColors[acc.id]} dynamicTrend={getDynamicTrend(acc.id)} onAccountUpdated={loadAccounts} />
             ))}
-            {!loading && <AddInstitutionCard onLinked={loadAccounts} />}
+            {!loading && !demoMode && <AddInstitutionCard onLinked={loadAccounts} />}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-8 rounded-3xl min-h-[450px]">
@@ -358,7 +360,7 @@ const PortfolioView: React.FC = () => {
             {liabilityAccounts.map((acc) => (
               <AccountCard key={acc.id} account={acc} isSelected={selectedIds.has(acc.id)} onToggle={toggleAccount} color={accountColors[acc.id]} dynamicTrend={getDynamicTrend(acc.id)} onAccountUpdated={loadAccounts} />
             ))}
-            {!loading && <AddInstitutionCard onLinked={loadAccounts} />}
+            {!loading && !demoMode && <AddInstitutionCard onLinked={loadAccounts} />}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-8 rounded-3xl min-h-[450px]">

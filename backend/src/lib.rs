@@ -6,6 +6,7 @@
 //! [`plaid`], server wiring in [`server`].
 
 pub mod auth;
+pub mod billing;
 pub mod capital_gains;
 pub mod cli;
 pub mod db;
@@ -36,6 +37,17 @@ pub struct AppState {
     /// PRIVACY_ENCRYPTION=on — allows users to opt into operator-blind
     /// per-user encryption (see `privacy` module).
     pub(crate) privacy_enabled: bool,
+    /// DEMO_MODE=on — public no-login demo instance: visitors get an ephemeral
+    /// cloned user, Google login and bank linking are disabled, data is reaped
+    /// daily. Off (default) on prod, which is left completely unaffected.
+    pub(crate) demo_mode: bool,
+    /// BILLING=on — Stripe subscription paywall (see `billing` module). None
+    /// (default) leaves every route's behavior unchanged.
+    pub(crate) billing: Option<billing::BillingConfig>,
+    /// DEV_LOGIN=on — localhost-only test convenience: a GET /api/auth/dev_login
+    /// mints a session for a fixed non-owner test user, bypassing Google. Off
+    /// (default) returns 404 on that route; never enable on a real deployment.
+    pub(crate) dev_login: bool,
     /// Unlocked per-user private keys, held in memory with a TTL.
     pub(crate) unlocked_keys: privacy::KeyCache,
     /// user_id → number of detached initial syncs in flight. Lets the frontend

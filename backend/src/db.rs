@@ -1387,3 +1387,241 @@ pub async fn seal_txn_row(
     .await?;
     Ok(())
 }
+
+// ── Demo mode (see DEMO_MODE in server/lib) ─────────────────────────────────
+
+/// Google-id of the persistent template user whose data is cloned into every
+/// ephemeral demo visitor. Distinct from the `demo:<uuid>` ephemerals so the
+/// reaper never touches it and the nightly sync keeps its sandbox data fresh.
+pub const DEMO_TEMPLATE_GOOGLE_ID: &str = "demo-template";
+
+/// Number of live ephemeral demo users (excludes the template).
+pub async fn count_demo_users(pool: &PgPool) -> Result<i64, AppError> {
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE google_id LIKE 'demo:%'")
+        .fetch_one(pool)
+        .await?;
+    Ok(n)
+}
+
+/// Insert an ephemeral demo user directly, bypassing the invite allowlist.
+pub async fn create_demo_user(
+    pool: &PgPool,
+    id: &str,
+    google_id: &str,
+    email: &str,
+    name: &str,
+) -> Result<(), AppError> {
+    sqlx::query("INSERT INTO users (id, google_id, email, name) VALUES ($1, $2, $3, $4)")
+        .bind(id).bind(google_id).bind(email).bind(name)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Clone the demo template user's financial data into `new_user_id`. Pure SQL
+/// in one transaction, using temp id-maps so the four child tables share a
+/// single account-id remap. Plaid natural-key PKs (accounts/transactions/
+/// investment_transactions ids) are regenerated; cloned plaid_items get a dummy
+/// non-null token and `revoked_at = now()` so the nightly sync skips them (they
+/// must never hit Plaid — no real access token). Skips saved_searches (global
+/// UNIQUE(name)), api tokens, oauth, and privacy keys.
+pub async fn clone_template_into(pool: &PgPool, new_user_id: &str) -> Result<(), AppError> {
+    let template_id: Option<String> =
+        sqlx::query_scalar("SELECT id FROM users WHERE google_id = $1")
+            .bind(DEMO_TEMPLATE_GOOGLE_ID)
+            .fetch_optional(pool)
+            .await?;
+    let template_id = template_id.ok_or_else(|| {
+        AppError::InternalServerError(
+            "Demo template not seeded — run `admin demo seed`.".to_string(),
+        )
+    })?;
+
+    let mut tx = pool.begin().await?;
+
+    // Item id map + cloned items (dummy token, revoked so sync skips them).
+    sqlx::query(
+        "CREATE TEMP TABLE _item_map ON COMMIT DROP AS
+            SELECT id AS old_id, gen_random_uuid()::text AS new_id
+            FROM plaid_items WHERE user_id = $1",
+    )
+    .bind(&template_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO plaid_items (id, institution_id, created_at, user_id, access_token_enc, key_version, revoked_at)
+         SELECT m.new_id, pi.institution_id, now(), $1, '\\x00'::bytea, pi.key_version, now()
+         FROM plaid_items pi JOIN _item_map m ON m.old_id = pi.id",
+    )
+    .bind(new_user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Account id map + cloned accounts.
+    sqlx::query(
+        "CREATE TEMP TABLE _acct_map ON COMMIT DROP AS
+            SELECT a.id AS old_id, gen_random_uuid()::text AS new_id
+            FROM accounts a JOIN _item_map m ON m.old_id = a.plaid_item_id",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO accounts (id, name, balance, trend_pct, plaid_item_id, custom_name, account_type, name_enc, custom_name_enc)
+         SELECT am.new_id, a.name, a.balance, a.trend_pct, im.new_id, a.custom_name, a.account_type, a.name_enc, a.custom_name_enc
+         FROM accounts a
+         JOIN _acct_map am ON am.old_id = a.id
+         JOIN _item_map im ON im.old_id = a.plaid_item_id",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Balance history.
+    sqlx::query(
+        "INSERT INTO account_snapshots (account_id, snapshot_date, balance_cents)
+         SELECT am.new_id, s.snapshot_date, s.balance_cents
+         FROM account_snapshots s JOIN _acct_map am ON am.old_id = s.account_id",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Transactions (new ids).
+    sqlx::query(
+        "INSERT INTO transactions (id, account_id, txn_date, raw_string, merchant_name, amount, pending,
+             payment_channel, plaid_category, plaid_primary_category, plaid_detailed_category, tags, note,
+             raw_string_enc, merchant_name_enc, note_enc)
+         SELECT gen_random_uuid()::text, am.new_id, t.txn_date, t.raw_string, t.merchant_name, t.amount, t.pending,
+             t.payment_channel, t.plaid_category, t.plaid_primary_category, t.plaid_detailed_category, t.tags, t.note,
+             t.raw_string_enc, t.merchant_name_enc, t.note_enc
+         FROM transactions t JOIN _acct_map am ON am.old_id = t.account_id",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Holdings (id is a sequence — omit it).
+    sqlx::query(
+        "INSERT INTO holdings (symbol, account_id, name, asset_value, return_str, performance_type, security_id, quantity, symbol_enc, name_enc)
+         SELECT h.symbol, am.new_id, h.name, h.asset_value, h.return_str, h.performance_type, h.security_id, h.quantity, h.symbol_enc, h.name_enc
+         FROM holdings h JOIN _acct_map am ON am.old_id = h.account_id",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Investment transaction id map + cloned rows.
+    sqlx::query(
+        "CREATE TEMP TABLE _inv_map ON COMMIT DROP AS
+            SELECT it.id AS old_id, gen_random_uuid()::text AS new_id
+            FROM investment_transactions it JOIN _acct_map am ON am.old_id = it.account_id",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO investment_transactions (id, account_id, date, name, amount, quantity, price, fees, txn_type, subtype, symbol, security_name, created_at, name_enc, symbol_enc, security_name_enc)
+         SELECT vm.new_id, am.new_id, it.date, it.name, it.amount, it.quantity, it.price, it.fees, it.txn_type, it.subtype, it.symbol, it.security_name, now(), it.name_enc, it.symbol_enc, it.security_name_enc
+         FROM investment_transactions it
+         JOIN _acct_map am ON am.old_id = it.account_id
+         JOIN _inv_map vm ON vm.old_id = it.id",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Manual cost-basis overrides (remap user + inv-txn id via the inv map).
+    sqlx::query(
+        "INSERT INTO cost_basis_overrides (user_id, investment_transaction_id, cost_basis_cents, is_long_term, source, created_at, updated_at)
+         SELECT $1, vm.new_id, c.cost_basis_cents, c.is_long_term, c.source, now(), now()
+         FROM cost_basis_overrides c JOIN _inv_map vm ON vm.old_id = c.investment_transaction_id
+         WHERE c.user_id = $2",
+    )
+    .bind(new_user_id)
+    .bind(&template_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Delete ephemeral demo users older than `ttl_hours` and all their data.
+/// Returns the deleted user ids so the caller can drop their cached keys.
+/// Never calls Plaid `/item/remove` — cloned items carry dummy tokens.
+pub async fn reap_demo_users(pool: &PgPool, ttl_hours: i64) -> Result<Vec<String>, AppError> {
+    let ids: Vec<String> = sqlx::query_scalar(
+        "SELECT id FROM users
+         WHERE google_id LIKE 'demo:%'
+           AND created_at < now() - make_interval(hours => $1)",
+    )
+    .bind(ttl_hours as i32)
+    .fetch_all(pool)
+    .await?;
+
+    for uid in &ids {
+        delete_user_snapshots(pool, uid).await?;
+        delete_user_holdings(pool, uid).await?;
+        delete_user_transactions(pool, uid).await?;
+        delete_user_accounts(pool, uid).await?;
+        delete_user_plaid_items(pool, uid).await?;
+        delete_user_saved_searches(pool, uid).await?;
+        delete_user_privacy_keys(pool, uid).await?;
+        // Cascades personal_api_tokens, oauth_*, cost_basis_overrides.
+        sqlx::query("DELETE FROM users WHERE id = $1").bind(uid).execute(pool).await?;
+    }
+    Ok(ids)
+}
+
+// ── Billing (BILLING=on deployments) ────────────────────────────────────────
+
+#[derive(sqlx::FromRow)]
+pub struct BillingUserRow {
+    pub email: String,
+    pub google_id: String,
+    pub stripe_customer_id: Option<String>,
+    pub subscription_status: String,
+    pub current_period_end: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+pub async fn billing_user(pool: &PgPool, user_id: &str) -> Result<Option<BillingUserRow>, AppError> {
+    let row = sqlx::query_as::<_, BillingUserRow>(
+        "SELECT email, google_id, stripe_customer_id, subscription_status, current_period_end
+         FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+/// Record the Stripe customer for a user. First writer wins — never overwrite
+/// an existing (different) customer id, which would detach a live subscription.
+pub async fn set_stripe_customer(pool: &PgPool, user_id: &str, customer_id: &str) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE users SET stripe_customer_id = $2
+         WHERE id = $1 AND (stripe_customer_id IS NULL OR stripe_customer_id = $2)",
+    )
+    .bind(user_id)
+    .bind(customer_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn user_id_by_stripe_customer(pool: &PgPool, customer_id: &str) -> Result<Option<String>, AppError> {
+    let id = sqlx::query_scalar("SELECT id FROM users WHERE stripe_customer_id = $1")
+        .bind(customer_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(id)
+}
+
+pub async fn set_subscription_state(
+    pool: &PgPool,
+    user_id: &str,
+    status: &str,
+    current_period_end: Option<chrono::DateTime<chrono::Utc>>,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE users SET subscription_status = $2, current_period_end = $3 WHERE id = $1")
+        .bind(user_id)
+        .bind(status)
+        .bind(current_period_end)
+        .execute(pool)
+        .await?;
+    Ok(())
+}

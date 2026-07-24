@@ -14,6 +14,9 @@ pub async fn create_link_token(
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Linking runs through Plaid Link in the browser; tokens have no use for it.
     auth.require_web_session()?;
+    if state.demo_mode {
+        return Err(AppError::Forbidden("Linking a bank isn't available in the demo.".to_string()));
+    }
     let token = state.plaid.create_link_token(&auth.user_id).await?;
     Ok(Json(serde_json::json!({ "link_token": token })))
 }
@@ -27,6 +30,9 @@ pub async fn exchange_public_token(
     Json(req): Json<ExchangeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     auth.require_web_session()?;
+    if state.demo_mode {
+        return Err(AppError::Forbidden("Linking a bank isn't available in the demo.".to_string()));
+    }
     let access_token = state.plaid.exchange_public_token(&req.public_token).await
         .map_err(|e| { tracing::error!(user_id = %auth.user_id, "Plaid token exchange failed: {}", e); e })?;
     let encrypted = encryption::encrypt_token(&state.encryption_key, &access_token)?;
@@ -88,6 +94,9 @@ pub async fn sync_plaid_data(
     auth: AuthUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
     auth.require_scope("sync")?;
+    if state.demo_mode {
+        return Err(AppError::Forbidden("Sync is disabled in the demo — data refreshes automatically.".to_string()));
+    }
     let items = db::get_user_plaid_items(&state.pool, &auth.user_id).await?;
 
     // Decrypt up front so config problems still fail the request, then sync

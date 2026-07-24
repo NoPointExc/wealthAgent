@@ -2606,6 +2606,7 @@ dependencies = [
  "chacha20poly1305",
  "chrono",
  "dotenvy",
+ "hmac",
  "jsonwebtoken",
  "rand 0.8.6",
  "reqwest",
