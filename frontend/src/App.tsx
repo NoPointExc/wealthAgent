@@ -242,7 +242,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-y-auto">
         {demoMode && (
           <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs font-medium px-8 py-2 text-center shrink-0">
-            Demo · sample data from Plaid Sandbox — resets daily. Bank linking and sync are disabled.
+            Demo · sample data from Plaid Sandbox, refreshed daily. Bank linking isn't available here — sign up to connect your own accounts.
           </div>
         )}
         {billingEnabled && billing?.status === 'past_due' && (
