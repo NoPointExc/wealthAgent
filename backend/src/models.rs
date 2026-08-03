@@ -319,6 +319,10 @@ pub struct User {
 #[derive(Debug, Deserialize)]
 pub struct GoogleAuthRequest {
     pub credential: String,
+    /// The user checked "I agree to the Terms of Service and Privacy Policy" at
+    /// sign-in. Required for all real sign-ins; recorded against the account.
+    #[serde(default)]
+    pub accepted_terms: bool,
 }
 
 #[derive(Debug, Serialize)]

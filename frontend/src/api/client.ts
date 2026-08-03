@@ -2,6 +2,16 @@ import type { Account, AggregateData, SuccessResponse, TransactionPage, Investme
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api';
 
+/** Thrown by googleLogin when the account must accept the current Terms/Privacy
+ *  before a session is issued (HTTP 428). The login view catches this to reveal
+ *  the one-time consent step. */
+export class ConsentRequiredError extends Error {
+  constructor(message = 'Consent required') {
+    super(message);
+    this.name = 'ConsentRequiredError';
+  }
+}
+
 async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const res = await fetch(url, {
     ...options,
@@ -121,13 +131,17 @@ export const apiClient = {
     return json.url;
   },
 
-  async googleLogin(credential: string): Promise<{ user: AuthUser }> {
+  async googleLogin(credential: string, acceptedTerms: boolean): Promise<{ user: AuthUser }> {
     const res = await fetch(`${API_BASE}/auth/google`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential }),
+      body: JSON.stringify({ credential, accepted_terms: acceptedTerms }),
     });
+    if (res.status === 428) {
+      // First-time (or new-version) consent needed — caller shows the checkbox.
+      throw new ConsentRequiredError();
+    }
     if (!res.ok) {
       let detail = 'Login failed';
       try {

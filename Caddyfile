@@ -17,8 +17,12 @@ www.texasnetworth.com {
 		-Server
 	}
 
+	# Static HTML must revalidate so landing/legal updates show up immediately.
+	header Cache-Control "no-cache"
+
 	root * /srv/landing
-	try_files {path} /index.html
+	# Serve pretty URLs for the static legal pages (/privacy -> privacy.html, etc.)
+	try_files {path} {path}.html /index.html
 	file_server
 }
 
@@ -34,6 +38,13 @@ app.texasnetworth.com {
 		Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com https://cdn.plaid.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://accounts.google.com https://production.plaid.com; frame-src https://cdn.plaid.com; font-src 'self'"
 		-Server
 	}
+
+	# Hashed build assets are immutable; the HTML shell must always revalidate so
+	# a new deploy is picked up without a manual hard-refresh.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@nocache not path /assets/*
+	header @nocache Cache-Control "no-cache"
 
 	route {
 		@backend path_regexp ^(/api/|/mcp$|/authorize$|/token$|/register$|/\.well-known/oauth)

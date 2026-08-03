@@ -7,7 +7,6 @@ import { useConfig } from './context/ConfigContext';
 import Sidebar from './components/Sidebar';
 import PortfolioView from './views/PortfolioView';
 import TransactionsView from './views/TransactionsView';
-import TaxView from './views/TaxView';
 import ConnectView from './views/ConnectView';
 import LoginView from './views/LoginView';
 import PaywallView from './views/PaywallView';
@@ -40,7 +39,8 @@ const App: React.FC = () => {
   // 'settings' was merged into the Connect tab ('advisory'); migrate any stale stored value.
   const initialTab = (() => {
     const stored = localStorage.getItem('wealth_agent_tab');
-    return stored === 'settings' || !stored ? 'portfolio' : stored;
+    // 'settings' was merged into Connect ('advisory') and 'tax' was removed.
+    return stored === 'settings' || stored === 'tax' || !stored ? 'portfolio' : stored;
   })();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => new Set([initialTab]));
@@ -228,7 +228,6 @@ const App: React.FC = () => {
     portfolio: 'Account Hierarchy & Holdings',
     transactions: 'Bank Transaction Logs',
     investments: 'Investment Trades & Capital Gains',
-    tax: 'Automated Tax Preparation',
     advisory: 'Connect your AI',
     privacy: 'Privacy Lock',
   };
@@ -304,11 +303,6 @@ const App: React.FC = () => {
           {mountedTabs.has('investments') && (
             <div className={show('investments')}>
               <TransactionsView mode="investments" />
-            </div>
-          )}
-          {mountedTabs.has('tax') && (
-            <div className={show('tax')}>
-              <TaxView />
             </div>
           )}
           {mountedTabs.has('advisory') && (

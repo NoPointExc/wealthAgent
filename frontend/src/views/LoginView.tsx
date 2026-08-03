@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import type { CredentialResponse } from '@react-oauth/google';
-import { Shield, AlertCircle } from 'lucide-react';
-import { apiClient } from '../api/client';
+import { Shield, AlertCircle, Loader2 } from 'lucide-react';
+import { apiClient, ConsentRequiredError } from '../api/client';
 
 interface Props {
   onLogin: () => void;
@@ -14,11 +14,18 @@ interface Props {
 }
 
 const SUPPORT_EMAIL = 'support@texasnetworth.com';
+const TERMS_URL = 'https://www.texasnetworth.com/terms';
+const PRIVACY_URL = 'https://www.texasnetworth.com/privacy';
 
 const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect, demoMode }) => {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  // Set when the server asks for first-time consent (HTTP 428). Holds the Google
+  // credential so we can retry the same sign-in once the box is checked.
+  const [pendingCredential, setPendingCredential] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const copyEmail = async () => {
     try {
@@ -62,15 +69,30 @@ const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect, demoMode }) =>
     onLogin();
   };
 
-  const handleSuccess = async (response: CredentialResponse) => {
-    if (!response.credential) return;
+  // Try to sign in. Returning users who already accepted are logged straight in;
+  // a first-time user gets a 428, and we reveal the one-time consent step while
+  // holding their credential so a single extra click finishes the sign-in.
+  const attemptLogin = async (credential: string, accepted: boolean) => {
     setError(null);
+    setSubmitting(true);
     try {
-      const data = await apiClient.googleLogin(response.credential);
+      const data = await apiClient.googleLogin(credential, accepted);
       enterApp(data.user);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Login failed');
+      if (e instanceof ConsentRequiredError) {
+        setPendingCredential(credential);
+      } else {
+        setPendingCredential(null);
+        setError(e instanceof Error ? e.message : 'Login failed');
+      }
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleSuccess = (response: CredentialResponse) => {
+    if (!response.credential) return;
+    attemptLogin(response.credential, false);
   };
 
   const handleDemo = async () => {
@@ -96,9 +118,11 @@ const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect, demoMode }) =>
         <p className="text-sm text-slate-400 text-center leading-relaxed">
           {demoMode
             ? 'Explore WealthAgent with sample data — no sign-up.'
-            : 'Sign in to access your personal wealth dashboard'}
+            : pendingCredential
+              ? 'One quick step before we set up your account.'
+              : 'Sign in to access your personal wealth dashboard'}
         </p>
-        <div className="w-full flex justify-center">
+        <div className="w-full flex flex-col items-center gap-3">
           {demoMode ? (
             <button
               onClick={handleDemo}
@@ -107,14 +131,59 @@ const LoginView: React.FC<Props> = ({ onLogin, postLoginRedirect, demoMode }) =>
             >
               {demoLoading ? 'Starting demo…' : 'Try the demo'}
             </button>
+          ) : pendingCredential ? (
+            /* One-time consent step: shown only when the server (428) says this
+               account hasn't accepted the current Terms yet. */
+            <>
+              <label className="flex items-start gap-2.5 w-full cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900 cursor-pointer"
+                />
+                <span className="text-xs text-slate-400 leading-relaxed">
+                  I agree to the{' '}
+                  <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-2">
+                    Terms of Service
+                  </a>{' '}
+                  and{' '}
+                  <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-2">
+                    Privacy Policy
+                  </a>.
+                </span>
+              </label>
+              <button
+                onClick={() => attemptLogin(pendingCredential, true)}
+                disabled={!agreed || submitting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold text-white rounded-xl transition-all"
+              >
+                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Agree &amp; Continue
+              </button>
+              <button
+                onClick={() => { setPendingCredential(null); setAgreed(false); setError(null); }}
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Use a different account
+              </button>
+            </>
           ) : (
-            <GoogleLogin
-              onSuccess={handleSuccess}
-              onError={() => console.error('Google login failed')}
-              theme="filled_black"
-              shape="rectangular"
-              size="large"
-            />
+            <>
+              <GoogleLogin
+                onSuccess={handleSuccess}
+                onError={() => console.error('Google login failed')}
+                theme="filled_black"
+                shape="rectangular"
+                size="large"
+              />
+              <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                By continuing you agree to our{' '}
+                <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-300 underline underline-offset-2">Terms</a>
+                {' '}and{' '}
+                <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-300 underline underline-offset-2">Privacy Policy</a>.
+              </p>
+            </>
           )}
         </div>
         {demoMode && (

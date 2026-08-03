@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Receipt, FileText, Shield, Plug, TrendingUp, Lock } from 'lucide-react';
+import { BarChart3, Receipt, Shield, Plug, TrendingUp, Lock } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -11,7 +11,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     { id: 'portfolio', label: 'Portfolio View', icon: BarChart3 },
     { id: 'transactions', label: 'Bank Transactions', icon: Receipt },
     { id: 'investments', label: 'Investment Transactions', icon: TrendingUp },
-    { id: 'tax', label: 'Tax Preparation', icon: FileText },
     { id: 'advisory', label: 'Connect your AI', icon: Plug },
     { id: 'privacy', label: 'Privacy Lock', icon: Lock },
   ];

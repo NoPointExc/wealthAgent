@@ -17,6 +17,9 @@ pub enum AppError {
     TooManyRequests(String),
     /// 402 — authenticated but no active subscription (BILLING=on paywall).
     PaymentRequired(String),
+    /// 428 — Google sign-in valid but the user must accept the current Terms /
+    /// Privacy Policy before an account is created or a session is issued.
+    ConsentRequired(String),
 }
 
 impl fmt::Display for AppError {
@@ -30,6 +33,7 @@ impl fmt::Display for AppError {
             AppError::Forbidden(msg) => write!(f, "Forbidden: {}", msg),
             AppError::TooManyRequests(msg) => write!(f, "Too Many Requests: {}", msg),
             AppError::PaymentRequired(msg) => write!(f, "Payment Required: {}", msg),
+            AppError::ConsentRequired(msg) => write!(f, "Consent Required: {}", msg),
         }
     }
 }
@@ -47,6 +51,7 @@ impl IntoResponse for AppError {
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
             AppError::PaymentRequired(msg) => (StatusCode::PAYMENT_REQUIRED, msg),
+            AppError::ConsentRequired(msg) => (StatusCode::PRECONDITION_REQUIRED, msg),
         };
 
         let body = Json(json!({

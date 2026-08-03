@@ -85,6 +85,52 @@ pub async fn upsert_user(
     Ok(())
 }
 
+/// True if a user with this google_id already exists and has accepted exactly the
+/// given Terms/Privacy version. Used to decide whether to prompt for consent — a
+/// user who accepted the current version is never asked again.
+pub async fn has_accepted_terms(
+    pool: &PgPool,
+    google_id: &str,
+    version: &str,
+) -> Result<bool, AppError> {
+    let accepted: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE google_id = $1 AND terms_version = $2)"
+    )
+    .bind(google_id).bind(version)
+    .fetch_one(pool)
+    .await?;
+    Ok(accepted)
+}
+
+/// Records that the user accepted the given Terms/Privacy version. Updates the
+/// fast "current state" columns on `users` AND appends an immutable audit row to
+/// `terms_acceptances` (unique id, timestamp, IP, device) for legal proof.
+pub async fn record_terms_acceptance(
+    pool: &PgPool,
+    user_id: &str,
+    version: &str,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE users SET terms_accepted_at = now(), terms_version = $2 WHERE id = $1"
+    )
+    .bind(user_id).bind(version)
+    .execute(&mut *tx)
+    .await?;
+    let audit_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO terms_acceptances (id, user_id, terms_version, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(&audit_id).bind(user_id).bind(version).bind(ip_address).bind(user_agent)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 pub async fn get_user_id_by_google(pool: &PgPool, google_id: &str) -> Result<String, AppError> {
     let id: String = sqlx::query_scalar("SELECT id FROM users WHERE google_id = $1")
         .bind(google_id)

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About — Texas Net Worth</title>
+  <meta name="description" content="About Texas Net Worth LLC, the company behind WealthAgent — the MCP server for your money." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root{--bg:#020617;--surface:#0f172a;--surface-2:#131c31;--border:#1e293b;--border-2:#334155;--text:#f1f5f9;--muted:#94a3b8;--faint:#64748b;--blue:#60a5fa;--blue-500:#3b82f6;--indigo:#818cf8;--green:#34d399;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.65;}
+    a{color:var(--blue);text-decoration:none;}
+    a:hover{text-decoration:underline;}
+    .wrap{width:100%;max-width:860px;margin:0 auto;padding:0 24px;}
+    .icon{width:1em;height:1em;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+    nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(2,6,23,.72);border-bottom:1px solid var(--border);}
+    .nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px;max-width:1120px;margin:0 auto;padding:0 24px;}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.08em;font-size:17px;color:var(--text);}
+    .brand .icon{width:22px;height:22px;color:var(--blue);}
+    .brand small{display:block;font-weight:600;letter-spacing:.02em;font-size:10px;color:var(--faint);margin-top:1px;}
+    .nav-links a{color:var(--muted);font-size:14px;font-weight:600;margin-left:24px;}
+    .nav-links a:hover{color:var(--text);text-decoration:none;}
+    .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:9px 16px;border-radius:10px;border:1px solid transparent;}
+    .btn-primary{background:linear-gradient(135deg,var(--blue-500),var(--indigo));color:#fff;}
+    .btn-primary:hover{text-decoration:none;}
+    article{padding:56px 0 40px;}
+    .kicker{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);}
+    h1{font-size:clamp(30px,4.4vw,44px);font-weight:800;letter-spacing:-.02em;margin:12px 0 0;}
+    .lede{color:var(--muted);font-size:17px;margin:18px 0 0;}
+    h2{font-size:22px;font-weight:700;margin:40px 0 12px;letter-spacing:-.01em;}
+    p{color:var(--muted);margin:12px 0;}
+    strong{color:var(--text);}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;margin-top:20px;}
+    .card h3{font-size:16px;font-weight:700;margin-bottom:10px;}
+    .kv{display:flex;gap:10px;font-size:14.5px;margin:8px 0;color:var(--muted);}
+    .kv .k{color:var(--faint);min-width:120px;}
+    .kv .v{color:var(--text);}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px;}
+    @media(max-width:700px){.grid2{grid-template-columns:1fr;}}
+    footer{border-top:1px solid var(--border);padding:28px 0;margin-top:40px;}
+    .foot-inner{display:flex;gap:14px 20px;flex-wrap:wrap;justify-content:space-between;align-items:center;font-size:13px;color:var(--faint);}
+    .foot-links a{color:var(--faint);margin-left:18px;}
+    .foot-links a:hover{color:var(--text);text-decoration:none;}
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a class="brand" href="/">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>WealthAgent<small>TEXAS NET WORTH</small></span>
+      </a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/price">Pricing</a>
+        <a href="https://app.texasnetworth.com">Open app</a>
+      </div>
+    </div>
+  </nav>
+
+  <article class="wrap">
+    <span class="kicker">About</span>
+    <h1>Your money, native to your AI.</h1>
+    <p class="lede">WealthAgent is a product of Texas Net Worth LLC. We build the missing bridge between your financial life and the AI agents you already use.</p>
+
+    <h2>Why we built it</h2>
+    <p>AI assistants have become genuinely useful — but they're flying blind about the one thing that touches every decision you make: your money. Copy-pasting balances into a chat window is tedious, error-prone, and stale the moment you hit send.</p>
+    <p>WealthAgent fixes that. We aggregate every bank, brokerage, credit card, and loan through <strong>Plaid</strong> and expose it over the <strong>Model Context Protocol (MCP)</strong> — the open standard that lets AI agents call real tools. Point Claude, ChatGPT, Gemini, or any MCP client at one secure endpoint and ask about your net worth, holdings, spending, or capital gains. It reads live data, on demand, and it's <strong>read-only</strong> by default.</p>
+
+    <h2>What we believe</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Access without surrender</h3>
+        <p>You decide which agents connect, what they can touch, and you cut them off in one click. Your financial data is <strong>never sold and never used to train AI models</strong>.</p>
+      </div>
+      <div class="card">
+        <h3>Open by default</h3>
+        <p>WealthAgent is <a href="https://github.com/NoPointExc/wealthAgent" target="_blank" rel="noopener">open source</a>. Run it yourself for free, or let us host it for you. No lock-in either way.</p>
+      </div>
+    </div>
+
+    <h2>Company &amp; contact</h2>
+    <div class="card">
+      <div class="kv"><span class="k">Legal name</span><span class="v">Texas Net Worth LLC</span></div>
+      <div class="kv"><span class="k">Entity</span><span class="v">Texas limited liability company</span></div>
+      <div class="kv"><span class="k">Mailing address</span><span class="v">5900 Balcones Drive STE 100<br/>Austin, TX 78731, USA</span></div>
+      <div class="kv"><span class="k">Email</span><span class="v"><a href="mailto:support@texasnetworth.com">support@texasnetworth.com</a></span></div>
+      <div class="kv"><span class="k">Product</span><span class="v">WealthAgent — the MCP server for your money</span></div>
+    </div>
+    <p style="margin-top:24px;">
+      <a class="btn btn-primary" href="https://demo.texasnetworth.com">Try the live demo
+        <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </p>
+  </article>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <span>© 2026 Texas Net Worth LLC · WealthAgent</span>
+      <div class="foot-links">
+        <a href="/">Home</a>
+        <a href="/price">Pricing</a>
+        <a href="https://github.com/NoPointExc/wealthAgent" target="_blank" rel="noopener">GitHub</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="mailto:support@texasnetworth.com">Contact</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

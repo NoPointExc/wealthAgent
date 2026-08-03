@@ -12,6 +12,11 @@ use axum::{
 use crate::models::SuccessResponse;
 use crate::{auth, auth::AuthUser, db, error::AppError, models, AppState};
 
+/// Version of the Terms of Service / Privacy Policy currently in force. Bump this
+/// (to e.g. the "Last updated" date) whenever the published legal terms change so
+/// that returning users re-record their acceptance of the new version.
+const TERMS_VERSION: &str = "2026-08-01";
+
 fn session_cookie(token: &str) -> String {
     let secure = if std::env::var("HTTPS_ENABLED").as_deref() == Ok("true") { "Secure; " } else { "" };
     // Cookie Max-Age matches the 30-day hard cap so the browser retains it across
@@ -74,9 +79,29 @@ pub async fn auth_google(
         ));
     }
 
+    // Consent gate — required only once. A user who has already accepted the
+    // current Terms/Privacy version is logged straight in; a new user (or one
+    // facing a newer version) must affirmatively accept before we create an
+    // account or issue a session. Enforced server-side, not just in the UI.
+    let needs_consent = !db::has_accepted_terms(&state.pool, &google_id, TERMS_VERSION).await?;
+    if needs_consent && !req.accepted_terms {
+        return Err(AppError::ConsentRequired(
+            "Please accept the Terms of Service and Privacy Policy to continue.".to_string(),
+        ));
+    }
+
     let new_id = uuid::Uuid::new_v4().to_string();
     db::upsert_user(&state.pool, &new_id, &google_id, &email, &name).await?;
     let actual_id = db::get_user_id_by_google(&state.pool, &google_id).await?;
+    if needs_consent {
+        // Capture when + from where, as proof of agreement (append-only log).
+        let client_ip = crate::ratelimit::client_key(&headers);
+        let ip = (client_ip != "unknown").then_some(client_ip.as_str());
+        let user_agent = headers
+            .get(axum::http::header::USER_AGENT)
+            .and_then(|v| v.to_str().ok());
+        db::record_terms_acceptance(&state.pool, &actual_id, TERMS_VERSION, ip, user_agent).await?;
+    }
 
     let token = auth::create_jwt(&actual_id, &state.jwt_secret)?;
     tracing::info!(user_id = %actual_id, "Login");
