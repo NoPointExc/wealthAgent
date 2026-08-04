@@ -16,7 +16,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     { id: 'portfolio', label: 'Portfolio View', icon: BarChart3 },
     { id: 'transactions', label: 'Bank Transactions', icon: Receipt },
     { id: 'investments', label: 'Investment Transactions', icon: TrendingUp },
-    { id: 'advisory', label: 'Connect your AI', icon: Plug },
+    { id: 'advisory', label: 'MCP: Connect your AI', icon: Plug },
     { id: 'privacy', label: 'Privacy Lock', icon: Lock },
   ];
 
