@@ -228,7 +228,7 @@ const App: React.FC = () => {
     portfolio: 'Account Hierarchy & Holdings',
     transactions: 'Bank Transaction Logs',
     investments: 'Investment Trades & Capital Gains',
-    advisory: 'Connect your AI',
+    advisory: 'MCP: Connect your AI',
     privacy: 'Privacy Lock',
   };
 
