@@ -8,9 +8,8 @@ transactions, and capital gains in a web dashboard — and let AI agents
 an OAuth-protected MCP endpoint.
 
 **Live demo / hosted option:** [www.texasnetworth.com](https://www.texasnetworth.com)
-(invite-only; email support@texasnetworth.com for access). Everything the
-hosted service runs is in this repo — you can spin up the identical stack on
-your own server.
+(sign up with a Google account). Everything the hosted service runs is in this
+repo — you can spin up the identical stack on your own server.
 
 ## Features
 
@@ -19,7 +18,7 @@ your own server.
 - **Capital gains** — realized-lot tracking with user-supplied cost basis for unknown lots
 - **Plaid sync** — daily automatic refresh; access tokens encrypted at rest (ChaCha20-Poly1305)
 - **MCP server** — `/mcp` endpoint with OAuth 2.1 (PKCE, dynamic client registration) or personal API tokens, so AI agents can read/annotate your finances with scoped access
-- **Invite-only multi-user** — Google sign-in, gated by an allowlist you control
+- **Multi-user** — Google sign-in with open self-service registration; owner/admin functions stay restricted to an owner list you control
 
 ## Stack
 
@@ -81,9 +80,11 @@ Sign in with the Google account you put in `OWNER_EMAILS`, click **Add
 institution**, and use Plaid sandbox credentials (`user_good` / `pass_good`)
 to link a fake bank.
 
-### Inviting more users
+### Managing access
 
-Sign-in is allowlist-gated. Add people with the admin CLI:
+The hosted service allows open self-service registration with a Google account.
+Self-hosters who prefer to keep sign-in restricted can run in allowlist mode and
+add people with the admin CLI:
 
 ```sh
 # local dev
