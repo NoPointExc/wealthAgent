@@ -80,6 +80,9 @@ Handling rules:
 
 ## 5. Access control
 
+*This section, together with §2 (roles) and §4 (data classification),
+constitutes WealthAgent's Access Control Policy and may be referenced as such.*
+
 - **Application access is via Google OAuth self-service registration.** Any user
   can sign up and sign in with a Google account; identity is asserted by Google's
   OAuth. Elevated privileges (owner/admin functions) remain restricted to a
@@ -98,6 +101,36 @@ Handling rules:
   never copied to shared machines, rotated on suspected compromise.
 - **Least privilege for registry:** the server pulls images with a
   `read:packages`-only PAT, separate from the push credential.
+- **Provisioning & de-provisioning.** User accounts are self-provisioned via
+  Google sign-in; elevated (owner/admin) access is granted explicitly by adding
+  an address to the owner list and removed by deleting it. On role change or
+  suspected compromise, the affected sessions and tokens are revoked (users can
+  revoke their own OAuth grants and personal API tokens; the operator can
+  invalidate sessions), and any shared infrastructure credential the person held
+  is rotated (§7).
+- **Access reviews.** The operator reviews access at least quarterly — the
+  owner/admin list, active personal API tokens and OAuth grants, and
+  infrastructure credentials (SSH keys, registry PATs) — and records any
+  revocations.
+
+### 5.1 Authentication & multi-factor authentication (MFA)
+
+- **Federated identity, no stored credentials.** All consumer authentication is
+  delegated to Google via OAuth 2.0 / OpenID Connect. WealthAgent does not
+  create, store, or manage consumer passwords, so credential-at-rest and
+  password-reuse risks do not sit within the application's trust boundary.
+- **MFA at the identity provider.** Google Sign-In supports 2-Step Verification
+  (MFA); for users who have enabled it, the second factor is enforced by Google
+  during the sign-in flow that completes **before** the application surfaces
+  Plaid Link or any account data. This mitigates the primary credential-theft
+  risks at the IdP layer.
+- **Known limitation.** IdP-level MFA is user-elected, not enforced by the
+  application: a user whose Google account has MFA disabled reaches the app with
+  a single factor. The application has no visibility into, or control over, an
+  individual user's Google MFA configuration.
+- **[Planned]** An application-level MFA step (TOTP) required after sign-in and
+  before Plaid Link is surfaced, to guarantee a second factor regardless of the
+  user's Google account configuration.
 
 ## 6. Encryption
 
