@@ -30,7 +30,7 @@ const SortableTh: React.FC<SortableThProps> = ({ col, label, activeCol, dir, onS
   const active = activeCol === col;
   return (
     <th
-      className={`p-5 cursor-pointer select-none group hover:text-slate-200 transition-colors ${className}`}
+      className={`px-3 py-3.5 cursor-pointer select-none group hover:text-slate-200 transition-colors ${className}`}
       onClick={() => onSort(col)}
     >
       <span className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : ''}`}>
@@ -562,18 +562,20 @@ const InvestmentTransactionsPanel: React.FC = () => {
 
       {/* Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="overflow-x-auto">
+        {/* Capped-height scroll region so the horizontal scrollbar stays pinned in
+            view and the header sticks while scrolling. */}
+        <div className="overflow-auto max-h-[calc(100vh-19rem)]">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-950/40 text-[10px] text-slate-500 uppercase tracking-widest font-black border-b border-slate-800/60">
+            <thead className="sticky top-0 z-10 bg-slate-950 text-[10px] text-slate-500 uppercase tracking-widest font-black border-b border-slate-800/60">
               <tr>
                 <SortableTh col="date"    label="Date"        activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-28" />
-                <SortableTh col="account" label="Account"     activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-44" />
-                <th className="p-5">Description</th>
+                <SortableTh col="account" label="Account"     activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-36" />
+                <th className="px-3 py-3.5">Description</th>
                 <SortableTh col="symbol"  label="Symbol"      activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-28" />
                 <SortableTh col="type"    label="Type"        activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-32" />
-                <th className="p-5 w-24 text-right">Qty</th>
-                <th className="p-5 w-28 text-right">Price</th>
-                <th className="p-5 w-24 text-right">Fees</th>
+                <th className="px-3 py-3.5 w-24 text-right">Qty</th>
+                <th className="px-3 py-3.5 w-28 text-right">Price</th>
+                <th className="px-3 py-3.5 w-24 text-right">Fees</th>
                 <SortableTh col="amount" label="Amount" activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-36" align="right" />
               </tr>
             </thead>
@@ -590,21 +592,21 @@ const InvestmentTransactionsPanel: React.FC = () => {
                 const isBuy = t.amount > 0;
                 return (
                   <tr key={t.id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="p-5 text-slate-500 font-bold tracking-wider font-mono text-[10px]">
+                    <td className="px-3 py-3.5 text-slate-500 font-bold tracking-wider font-mono text-[10px]">
                       {(() => { const [y, m, d] = t.date.split('-'); return `${m}/${d}/${y}`; })()}
                     </td>
-                    <td className="p-5">
+                    <td className="px-3 py-3.5">
                       <span className="px-2.5 py-1 bg-slate-950 text-slate-400 font-semibold border border-slate-800/80 rounded-xl max-w-[160px] truncate block text-[10px]" title={isLocked(t.account_name) ? undefined : t.account_name}>
                         <LockedValue value={t.account_name} />
                       </span>
                     </td>
-                    <td className="p-5 max-w-[240px]">
+                    <td className="px-3 py-3.5 max-w-[240px]">
                       <div className="font-bold text-slate-100 text-sm truncate"><LockedValue value={t.name} /></div>
                       {t.security_name && t.security_name !== t.name && (
                         <div className="text-[10px] text-slate-500 truncate font-mono"><LockedValue value={t.security_name} /></div>
                       )}
                     </td>
-                    <td className="p-5">
+                    <td className="px-3 py-3.5">
                       {isLocked(t.symbol) ? (
                         <LockedValue value={t.symbol} />
                       ) : t.symbol ? (
@@ -613,21 +615,21 @@ const InvestmentTransactionsPanel: React.FC = () => {
                         </span>
                       ) : <span className="text-slate-600 italic text-[10px]">—</span>}
                     </td>
-                    <td className="p-5">
+                    <td className="px-3 py-3.5">
                       <span className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider ${typeColor(t.subtype || t.txn_type)}`}>
                         {t.subtype || t.txn_type}
                       </span>
                     </td>
-                    <td className="p-5 text-right font-mono text-[11px] text-slate-300">
+                    <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-300">
                       {t.quantity != null ? t.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 }) : '—'}
                     </td>
-                    <td className="p-5 text-right font-mono text-[11px] text-slate-300">
+                    <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-300">
                       {t.price != null ? `$${(t.price / 100).toFixed(2)}` : '—'}
                     </td>
-                    <td className="p-5 text-right font-mono text-[11px] text-slate-500">
+                    <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-500">
                       {t.fees != null && t.fees !== 0 ? `$${(t.fees / 100).toFixed(2)}` : '—'}
                     </td>
-                    <td className="p-5 text-right">
+                    <td className="px-3 py-3.5 text-right">
                       <span className={`text-sm font-black font-mono tracking-tight ${isBuy ? 'text-slate-100' : 'text-emerald-400'}`}>
                         {isBuy ? '−' : '+'}{formatCurrency(t.amount)}
                       </span>
@@ -1605,11 +1607,14 @@ const TransactionsView: React.FC = () => {
 
       {/* Main Transactions Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl relative">
-        <div className="overflow-x-auto">
+        {/* Capped-height scroll region: the horizontal scrollbar stays pinned at
+            the bottom of the viewport instead of hiding below thousands of rows,
+            and the header sticks so columns stay labelled while scrolling. */}
+        <div className="overflow-auto max-h-[calc(100vh-19rem)]">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-950/40 text-[10px] text-slate-500 uppercase tracking-widest font-black border-b border-slate-800/60">
+            <thead className="sticky top-0 z-10 bg-slate-950 text-[10px] text-slate-500 uppercase tracking-widest font-black border-b border-slate-800/60">
               <tr>
-                <th className="p-5 w-12 text-center">
+                <th className="px-3 py-3.5 w-12 text-center">
                   <button
                     onClick={handleSelectAllToggle}
                     className="p-1 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-300"
@@ -1619,13 +1624,13 @@ const TransactionsView: React.FC = () => {
                   </button>
                 </th>
                 <SortableTh col="date"     label="Date"     activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-28" />
-                <SortableTh col="account"  label="Account"  activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-44" />
+                <SortableTh col="account"  label="Account"  activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-32" />
                 <SortableTh col="merchant" label="Transaction Details" activeCol={sortCol} dir={sortDir} onSort={handleSort} />
-                <SortableTh col="category" label="Plaid Category"      activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-48" />
-                <th className="p-5 w-40">Tags</th>
-                <th className="p-5 w-52">Note</th>
-                <th className="p-5 w-16 text-center">Type</th>
+                <SortableTh col="category" label="Plaid Category"      activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-40" />
                 <SortableTh col="amount" label="Amount" activeCol={sortCol} dir={sortDir} onSort={handleSort} className="w-36" align="right" />
+                <th className="px-3 py-3.5 w-32">Tags</th>
+                <th className="px-3 py-3.5 w-44">Note</th>
+                <th className="px-3 py-3.5 w-16 text-center">Type</th>
               </tr>
             </thead>
             <tbody className="text-xs divide-y divide-slate-800/50 text-slate-300">
@@ -1658,7 +1663,7 @@ const TransactionsView: React.FC = () => {
                       }`}
                     >
                       {/* Checkbox */}
-                      <td className="p-5 text-center">
+                      <td className="px-3 py-3.5 text-center">
                         <button 
                           onClick={() => handleSelectRow(t.id)}
                           className={`p-1 hover:bg-slate-800/60 rounded-lg transition-all ${
@@ -1674,7 +1679,7 @@ const TransactionsView: React.FC = () => {
                       </td>
 
                       {/* Date */}
-                      <td className="p-5 text-slate-500 font-bold tracking-wider font-mono text-[10px]">
+                      <td className="px-3 py-3.5 text-slate-500 font-bold tracking-wider font-mono text-[10px]">
                         {(() => {
                           const [year, month, day] = t.txn_date.split('-');
                           return `${month}/${day}/${year}`;
@@ -1682,14 +1687,14 @@ const TransactionsView: React.FC = () => {
                       </td>
 
                       {/* Account */}
-                      <td className="p-5">
+                      <td className="px-3 py-3.5">
                         <span className="px-2.5 py-1 bg-slate-950 text-slate-400 font-semibold border border-slate-800/80 rounded-xl max-w-[160px] truncate block text-[10px]" title={isLocked(t.account_name) ? undefined : t.account_name}>
                           <LockedValue value={t.account_name} />
                         </span>
                       </td>
 
                       {/* Details (Merchant + Raw String) */}
-                      <td className="p-5">
+                      <td className="px-3 py-3.5">
                         <div className="flex flex-col gap-0.5 max-w-md">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-100 text-sm tracking-tight"><LockedValue value={displayMerchant} /></span>
@@ -1708,7 +1713,7 @@ const TransactionsView: React.FC = () => {
                       </td>
 
                       {/* Plaid Category */}
-                      <td className="p-5">
+                      <td className="px-3 py-3.5">
                         <div className="flex flex-col gap-1">
                           {t.plaid_primary_category ? (
                             <span className="text-[10px] text-blue-400 font-black uppercase tracking-wider">
@@ -1725,13 +1730,22 @@ const TransactionsView: React.FC = () => {
                         </div>
                       </td>
 
+                      {/* Amount */}
+                      <td className="px-3 py-3.5 text-right">
+                        <span className={`text-sm font-black font-mono tracking-tight ${
+                          isExpense ? 'text-slate-100' : 'text-emerald-400'
+                        }`}>
+                          {isExpense ? '-' : '+'}{formatCurrency(t.amount)}
+                        </span>
+                      </td>
+
                       {/* Tags */}
-                      <td className="p-5">
+                      <td className="px-3 py-3.5">
                         <TagCell txnId={t.id} tags={t.tags} onSave={handleTagsChange} />
                       </td>
 
                       {/* Note */}
-                      <td className="p-5">
+                      <td className="px-3 py-3.5">
                         <NoteCell
                           txnId={t.id}
                           note={t.note}
@@ -1740,19 +1754,10 @@ const TransactionsView: React.FC = () => {
                       </td>
 
                       {/* Payment Channel Icon */}
-                      <td className="p-5 text-center">
+                      <td className="px-3 py-3.5 text-center">
                         <div className="inline-flex p-2 bg-slate-950/60 rounded-xl border border-slate-800/80">
                           {renderChannelIcon(t.payment_channel)}
                         </div>
-                      </td>
-
-                      {/* Amount */}
-                      <td className="p-5 text-right">
-                        <span className={`text-sm font-black font-mono tracking-tight ${
-                          isExpense ? 'text-slate-100' : 'text-emerald-400'
-                        }`}>
-                          {isExpense ? '-' : '+'}{formatCurrency(t.amount)}
-                        </span>
                       </td>
                     </tr>
                   );
@@ -2074,11 +2079,11 @@ const CapitalGainsPanel: React.FC = () => {
                 <SortableTh col="close_date" label="Sold"      activeCol={realizedSortCol} dir={realizedSortDir} onSort={handleRealizedSort} className="w-28" />
                 <SortableTh col="open_date"  label="Bought"    activeCol={realizedSortCol} dir={realizedSortDir} onSort={handleRealizedSort} className="w-28" />
                 <SortableTh col="symbol"     label="Symbol"    activeCol={realizedSortCol} dir={realizedSortDir} onSort={handleRealizedSort} className="w-28" />
-                <th className="p-5">Description</th>
-                <th className="p-5 text-right w-16">Qty</th>
-                <th className="p-5 text-right w-32">Term</th>
+                <th className="px-3 py-3.5">Description</th>
+                <th className="px-3 py-3.5 text-right w-16">Qty</th>
+                <th className="px-3 py-3.5 text-right w-32">Term</th>
                 <SortableTh col="cost" label="Cost Basis" activeCol={realizedSortCol} dir={realizedSortDir} onSort={handleRealizedSort} className="w-32" align="right" />
-                <th className="p-5 text-right w-32">Proceeds</th>
+                <th className="px-3 py-3.5 text-right w-32">Proceeds</th>
                 <SortableTh col="gain" label="Gain / Loss" activeCol={realizedSortCol} dir={realizedSortDir} onSort={handleRealizedSort} className="w-32" align="right" />
               </tr>
             </thead>
@@ -2092,18 +2097,18 @@ const CapitalGainsPanel: React.FC = () => {
                 const isEditing = isManual && editingTxnId === lot.txn_id;
                 return (
                 <tr key={lot.txn_id ?? `fifo-${i}`} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="p-5 text-slate-500 font-mono text-[10px] font-bold">{fmtDate(lot.close_date)}</td>
-                  <td className="p-5 text-slate-600 font-mono text-[10px]">{fmtDate(lot.open_date)}</td>
-                  <td className="p-5">
+                  <td className="px-3 py-3.5 text-slate-500 font-mono text-[10px] font-bold">{fmtDate(lot.close_date)}</td>
+                  <td className="px-3 py-3.5 text-slate-600 font-mono text-[10px]">{fmtDate(lot.open_date)}</td>
+                  <td className="px-3 py-3.5">
                     {lot.symbol ? (
                       <span className="px-2 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-lg text-[10px] font-black tracking-wider">
                         {lot.symbol}
                       </span>
                     ) : <span className="text-slate-600 italic text-[10px]">—</span>}
                   </td>
-                  <td className="p-5 max-w-[200px] truncate text-slate-400 text-[11px]">{lot.security_name ?? '—'}</td>
-                  <td className="p-5 text-right font-mono text-[11px]">{lot.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
-                  <td className="p-5 text-right">
+                  <td className="px-3 py-3.5 max-w-[200px] truncate text-slate-400 text-[11px]">{lot.security_name ?? '—'}</td>
+                  <td className="px-3 py-3.5 text-right font-mono text-[11px]">{lot.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
+                  <td className="px-3 py-3.5 text-right">
                     <div className="flex flex-col items-end gap-1">
                       <span className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider ${lot.is_long_term ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' : 'text-amber-400 bg-amber-500/10 border-amber-500/20'}`}>
                         {lot.is_long_term ? 'Long' : 'Short'}
@@ -2112,7 +2117,7 @@ const CapitalGainsPanel: React.FC = () => {
                     </div>
                   </td>
                   {/* Cost Basis — editable for Manual lots */}
-                  <td className="p-5 text-right">
+                  <td className="px-3 py-3.5 text-right">
                     {isEditing ? (
                       <div className="flex flex-col items-end gap-1.5">
                         <div className="flex items-center gap-1.5">
@@ -2141,8 +2146,8 @@ const CapitalGainsPanel: React.FC = () => {
                       <span className="font-mono text-[11px] text-slate-400">{fmt(lot.cost_basis_cents)}</span>
                     )}
                   </td>
-                  <td className="p-5 text-right font-mono text-[11px] text-slate-400">{fmt(lot.proceeds_cents)}</td>
-                  <td className="p-5 text-right">
+                  <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-400">{fmt(lot.proceeds_cents)}</td>
+                  <td className="px-3 py-3.5 text-right">
                     {isEditing ? (
                       <div className="flex items-center justify-end gap-1.5">
                         <button
@@ -2201,13 +2206,13 @@ const CapitalGainsPanel: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead className="bg-slate-950/40 text-[10px] text-slate-500 uppercase tracking-widest font-black border-b border-slate-800/60">
                 <tr>
-                  <th className="p-5 w-28">Sold</th>
-                  <th className="p-5 w-28">Symbol</th>
-                  <th className="p-5">Description</th>
-                  <th className="p-5 text-right w-20">Qty</th>
-                  <th className="p-5 text-right w-36">Proceeds</th>
-                  <th className="p-5 text-right w-52">Cost Basis</th>
-                  <th className="p-5 text-right w-36">Gain / Loss</th>
+                  <th className="px-3 py-3.5 w-28">Sold</th>
+                  <th className="px-3 py-3.5 w-28">Symbol</th>
+                  <th className="px-3 py-3.5">Description</th>
+                  <th className="px-3 py-3.5 text-right w-20">Qty</th>
+                  <th className="px-3 py-3.5 text-right w-36">Proceeds</th>
+                  <th className="px-3 py-3.5 text-right w-52">Cost Basis</th>
+                  <th className="px-3 py-3.5 text-right w-36">Gain / Loss</th>
                 </tr>
               </thead>
               <tbody className="text-xs divide-y divide-slate-800/50 text-slate-300">
@@ -2215,20 +2220,20 @@ const CapitalGainsPanel: React.FC = () => {
                   const isEditing = editingTxnId === s.txn_id;
                   return (
                     <tr key={s.txn_id} className="hover:bg-slate-800/20 transition-colors">
-                      <td className="p-5 text-slate-500 font-mono text-[10px] font-bold">{fmtDate(s.close_date)}</td>
-                      <td className="p-5">
+                      <td className="px-3 py-3.5 text-slate-500 font-mono text-[10px] font-bold">{fmtDate(s.close_date)}</td>
+                      <td className="px-3 py-3.5">
                         {s.symbol ? (
                           <span className="px-2 py-1 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-lg text-[10px] font-black tracking-wider">
                             {s.symbol}
                           </span>
                         ) : <span className="text-slate-600 italic text-[10px]">—</span>}
                       </td>
-                      <td className="p-5 max-w-[180px] truncate text-slate-400 text-[11px]">{s.security_name ?? '—'}</td>
-                      <td className="p-5 text-right font-mono text-[11px]">{s.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
-                      <td className="p-5 text-right font-mono text-[11px] text-slate-300">{fmt(s.proceeds_cents)}</td>
+                      <td className="px-3 py-3.5 max-w-[180px] truncate text-slate-400 text-[11px]">{s.security_name ?? '—'}</td>
+                      <td className="px-3 py-3.5 text-right font-mono text-[11px]">{s.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
+                      <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-300">{fmt(s.proceeds_cents)}</td>
 
                       {/* Cost Basis — editable */}
-                      <td className="p-5 text-right">
+                      <td className="px-3 py-3.5 text-right">
                         {isEditing ? (
                           <div className="flex flex-col items-end gap-1.5">
                             <div className="flex items-center gap-1.5">
@@ -2259,7 +2264,7 @@ const CapitalGainsPanel: React.FC = () => {
                       </td>
 
                       {/* Gain / Loss + action buttons */}
-                      <td className="p-5 text-right">
+                      <td className="px-3 py-3.5 text-right">
                         {isEditing ? (
                           <div className="flex items-center justify-end gap-1.5">
                             <button
@@ -2308,14 +2313,14 @@ const CapitalGainsPanel: React.FC = () => {
             <thead className="bg-slate-950/40 text-[10px] text-slate-500 uppercase tracking-widest font-black border-b border-slate-800/60">
               <tr>
                 <SortableTh col="symbol" label="Symbol"       activeCol={unrealizedSortCol} dir={unrealizedSortDir} onSort={handleUnrealizedSort} className="w-28" />
-                <th className="p-5">Description</th>
+                <th className="px-3 py-3.5">Description</th>
                 <SortableTh col="since"  label="Since"        activeCol={unrealizedSortCol} dir={unrealizedSortDir} onSort={handleUnrealizedSort} className="w-28" />
-                <th className="p-5 text-right w-20">Qty</th>
+                <th className="px-3 py-3.5 text-right w-20">Qty</th>
                 <SortableTh col="cost"   label="Cost Basis"   activeCol={unrealizedSortCol} dir={unrealizedSortDir} onSort={handleUnrealizedSort} className="w-32" align="right" />
-                <th className="p-5 text-right w-32">Mkt Value*</th>
+                <th className="px-3 py-3.5 text-right w-32">Mkt Value*</th>
                 <SortableTh col="gain"   label="Unrealized G/L" activeCol={unrealizedSortCol} dir={unrealizedSortDir} onSort={handleUnrealizedSort} className="w-36" align="right" />
-                <th className="p-5 text-center w-24">If Sold Today</th>
-                <th className="p-5 text-center w-20">Harvest</th>
+                <th className="px-3 py-3.5 text-center w-24">If Sold Today</th>
+                <th className="px-3 py-3.5 text-center w-20">Harvest</th>
               </tr>
             </thead>
             <tbody className="text-xs divide-y divide-slate-800/50 text-slate-300">
@@ -2327,7 +2332,7 @@ const CapitalGainsPanel: React.FC = () => {
                 const isHarvestCandidate = (pos.gain_cents ?? 0) < 0;
                 return (
                   <tr key={i} className={`hover:bg-slate-800/20 transition-colors ${isHarvestCandidate ? 'bg-red-950/10' : ''}`}>
-                    <td className="p-5">
+                    <td className="px-3 py-3.5">
                       <div className="flex items-center gap-1.5">
                         {pos.symbol ? (
                           <span className="px-2 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-lg text-[10px] font-black tracking-wider">
@@ -2341,26 +2346,26 @@ const CapitalGainsPanel: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td className="p-5 max-w-[200px] truncate text-slate-400 text-[11px]">{pos.security_name ?? '—'}</td>
-                    <td className="p-5 font-mono text-[10px] text-slate-500">{fmtDate(pos.oldest_lot_date)}</td>
-                    <td className="p-5 text-right font-mono text-[11px]">{pos.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
-                    <td className="p-5 text-right font-mono text-[11px] text-slate-400">{fmt(pos.cost_basis_cents)}</td>
-                    <td className="p-5 text-right font-mono text-[11px] text-slate-400">
+                    <td className="px-3 py-3.5 max-w-[200px] truncate text-slate-400 text-[11px]">{pos.security_name ?? '—'}</td>
+                    <td className="px-3 py-3.5 font-mono text-[10px] text-slate-500">{fmtDate(pos.oldest_lot_date)}</td>
+                    <td className="px-3 py-3.5 text-right font-mono text-[11px]">{pos.quantity.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
+                    <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-400">{fmt(pos.cost_basis_cents)}</td>
+                    <td className="px-3 py-3.5 text-right font-mono text-[11px] text-slate-400">
                       {pos.current_value_cents != null ? fmt(pos.current_value_cents) : <span className="text-slate-600 italic">—sync needed—</span>}
                     </td>
-                    <td className="p-5 text-right">
+                    <td className="px-3 py-3.5 text-right">
                       {pos.gain_cents != null ? (
                         <span className={`text-sm font-black font-mono ${gainColor(pos.gain_cents)}`}>
                           {gainSign(pos.gain_cents)}{fmt(pos.gain_cents)}
                         </span>
                       ) : <span className="text-slate-600 italic text-[10px]">—</span>}
                     </td>
-                    <td className="p-5 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       <span className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider ${pos.is_long_term_if_sold_today ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' : 'text-amber-400 bg-amber-500/10 border-amber-500/20'}`}>
                         {pos.is_long_term_if_sold_today ? 'Long' : 'Short'}
                       </span>
                     </td>
-                    <td className="p-5 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       {isHarvestCandidate ? (
                         <div className="flex items-center justify-center">
                           <span title="Selling this position would realize a loss to offset gains" className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] font-black text-emerald-400">
