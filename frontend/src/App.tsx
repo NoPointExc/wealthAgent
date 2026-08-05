@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { RefreshCw, Eye, EyeOff, Menu } from 'lucide-react';
 import { apiClient } from './api/client';
 import type { BillingStatus } from './api/client';
 import { usePrivacy } from './context/PrivacyContext';
@@ -46,6 +46,8 @@ const App: React.FC = () => {
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => new Set([initialTab]));
   const [refreshKey, setRefreshKey] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  // Mobile nav drawer (< md); the desktop hover-rail ignores this.
+  const [navOpen, setNavOpen] = useState(false);
   const { hidden, toggle: togglePrivacy } = usePrivacy();
 
   const handleManualSync = useCallback(async () => {
@@ -236,47 +238,61 @@ const App: React.FC = () => {
     <PrivacyGate onSetUp={() => handleTabChange('privacy')}>
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans antialiased">
       <PlaidOAuthResume onLinked={() => setRefreshKey(k => k + 1)} />
-      <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        mobileOpen={navOpen}
+        onMobileClose={() => setNavOpen(false)}
+      />
 
       <main className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-y-auto">
         {demoMode && (
-          <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs font-medium px-8 py-2 text-center shrink-0">
+          <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 text-xs font-medium px-4 md:px-8 py-2 text-center shrink-0">
             Demo · sample data from Plaid Sandbox, refreshed daily. Bank linking isn't available here — sign up to connect your own accounts.
           </div>
         )}
         {billingEnabled && billing?.status === 'past_due' && (
-          <div className="bg-rose-500/15 border-b border-rose-500/30 text-rose-200 text-xs font-medium px-8 py-2 text-center shrink-0">
+          <div className="bg-rose-500/15 border-b border-rose-500/30 text-rose-200 text-xs font-medium px-4 md:px-8 py-2 text-center shrink-0">
             Your last payment failed — access ends at the period end unless it's fixed.{' '}
             <button onClick={openBillingPortal} className="underline font-bold hover:text-rose-100">
               Update payment method
             </button>
           </div>
         )}
-        <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur px-8 flex items-center justify-between shrink-0 sticky top-0 z-30">
-          <h2 className="text-lg font-semibold text-slate-200">{titles[activeTab]}</h2>
-          <div className="flex items-center gap-3">
+        <header className="h-16 border-b border-slate-800 bg-slate-900/50 backdrop-blur px-4 md:px-8 flex items-center justify-between gap-2 shrink-0 sticky top-0 z-30">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setNavOpen(true)}
+              aria-label="Open menu"
+              className="md:hidden p-2 -ml-1 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors shrink-0"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h2 className="text-base md:text-lg font-semibold text-slate-200 truncate">{titles[activeTab]}</h2>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <PrivacyLockButton onGoToPrivacyTab={() => handleTabChange('privacy')} />
             <button
               onClick={togglePrivacy}
               title={hidden ? 'Show dollar amounts' : 'Hide dollar amounts (demo mode)'}
               aria-pressed={hidden}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all border ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-xs font-bold rounded-xl transition-all border ${
                 hidden
                   ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
               }`}
             >
               {hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {hidden ? 'Amounts hidden' : 'Amounts shown'}
+              <span className="hidden sm:inline">{hidden ? 'Amounts hidden' : 'Amounts shown'}</span>
             </button>
             {activeTab === 'portfolio' && !demoMode && (
               <button
                 onClick={handleManualSync}
                 disabled={syncing}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-bold rounded-xl transition-all border border-slate-700"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-bold rounded-xl transition-all border border-slate-700"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Syncing...' : 'Refresh'}
+                <span className="hidden sm:inline">{syncing ? 'Syncing...' : 'Refresh'}</span>
               </button>
             )}
             <ProfileDropdown
@@ -289,7 +305,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="p-8 flex-1">
+        <div className="p-4 md:p-8 flex-1">
           {/* Each view mounts once on first visit and stays mounted (keep-alive).
               Tab switches only toggle visibility — no re-fetches. */}
           <div className={show('portfolio')}>

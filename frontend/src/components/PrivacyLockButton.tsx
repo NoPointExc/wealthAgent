@@ -62,10 +62,10 @@ const PrivacyLockButton: React.FC<{ onGoToPrivacyTab: () => void }> = ({ onGoToP
       <button
         onClick={() => (state === 'locked' ? setShowUnlock(true) : onGoToPrivacyTab())}
         title={looks.tip}
-        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all border ${looks.cls}`}
+        className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-xs font-bold rounded-xl transition-all border ${looks.cls}`}
       >
         {looks.icon}
-        {looks.label}
+        <span className="hidden sm:inline">{looks.label}</span>
       </button>
 
       {showUnlock && <UnlockDialog onClose={() => setShowUnlock(false)} />}
