@@ -259,15 +259,15 @@ const PortfolioView: React.FC = () => {
 
   return (
     <div className="space-y-12 pb-20">
-      <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8">
-        <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
-                <LayoutDashboard className="w-8 h-8 text-blue-400" />
+      <div className="bg-slate-900 border border-slate-800 p-5 md:p-8 rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6 md:gap-8">
+        <div className="flex items-center gap-4 md:gap-6 min-w-0">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center border border-blue-500/20 shrink-0">
+                <LayoutDashboard className="w-6 h-6 md:w-8 md:h-8 text-blue-400" />
             </div>
-            <div>
+            <div className="min-w-0">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-1">Global Net Worth</h3>
-                <div className="flex items-center">
-                    <h2 className={`text-5xl font-black tracking-tighter ${netWorth >= 0 ? 'text-white' : 'text-rose-500'}`}>
+                <div className="flex items-center flex-wrap">
+                    <h2 className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter ${netWorth >= 0 ? 'text-white' : 'text-rose-500'}`}>
                         {netWorth < 0 ? '-' : ''}{formatCurrency(netWorth)}
                     </h2>
                     {!loading && renderTrendBadge(globalTrend)}
@@ -275,10 +275,10 @@ const PortfolioView: React.FC = () => {
             </div>
         </div>
 
-        <div className="flex flex-col items-end gap-4">
-            <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-3 bg-slate-950/50 p-1.5 rounded-2xl border border-slate-800">
-                    <div className="flex items-center gap-1 border-r border-slate-800 pr-3 mr-1">
+        <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
+            <div className="flex flex-col items-center md:items-end gap-2">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-3 bg-slate-950/50 p-1.5 rounded-2xl border border-slate-800">
+                    <div className="flex items-center gap-1 md:border-r md:border-slate-800 md:pr-3 md:mr-1">
                         <Calendar className="w-3.5 h-3.5 text-slate-500 ml-2" />
                         {['1m', '3m', '6m', 'ytd', '1y', 'custom'].map((range) => (
                             <button key={range} onClick={() => setRangeType(range)} className={`px-3 py-1.5 text-[10px] font-black rounded-xl transition-all ${rangeType === range ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-500 hover:text-slate-300'}`}>{range.toUpperCase()}</button>
@@ -305,12 +305,12 @@ const PortfolioView: React.FC = () => {
       </div>
 
       <section className="space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-500/10 rounded-lg"><TrendingUp className="w-5 h-5 text-emerald-400" /></div>
-                  <h3 className="text-xl font-bold text-slate-100">Assets Portfolio</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0"><TrendingUp className="w-5 h-5 text-emerald-400" /></div>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-100">Assets Portfolio</h3>
                   <div className="flex items-center">
-                      <span className="ml-2 text-2xl font-mono text-emerald-500">{formatCurrency(assetData.currentTotal)}</span>
+                      <span className="ml-2 text-xl sm:text-2xl font-mono text-emerald-500">{formatCurrency(assetData.currentTotal)}</span>
                       {!loading && renderTrendBadge(assetData.groupTrend)}
                   </div>
               </div>
@@ -326,13 +326,13 @@ const PortfolioView: React.FC = () => {
             {!loading && !demoMode && <AddInstitutionCard onLinked={loadAccounts} />}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-8 rounded-3xl min-h-[450px]">
+              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 md:p-8 rounded-3xl min-h-[450px]">
                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6">Asset History</h4>
                   <div className="h-full max-h-[350px]">
                     <PortfolioChart accountHistories={assetData.filteredHistories} accountNames={accountNames} accountColors={accountColors} hidden={hidden} />
                   </div>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl flex flex-col items-center">
+              <div className="bg-slate-900 border border-slate-800 p-4 md:p-8 rounded-3xl flex flex-col items-center">
                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 self-start">Asset Breakdown</h4>
                   <div className="w-full">
                     <BreakdownChart holdingsBreakdown={assetData.filteredHoldings} accountNames={accountNames} accountColors={accountColors} hidden={hidden} />
@@ -342,12 +342,12 @@ const PortfolioView: React.FC = () => {
       </section>
 
       <section className="space-y-6 pt-10 border-t border-slate-800/50">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                  <div className="p-2 bg-rose-500/10 rounded-lg"><TrendingDown className="w-5 h-5 text-rose-400" /></div>
-                  <h3 className="text-xl font-bold text-slate-100">Liabilities & Debt</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <div className="p-2 bg-rose-500/10 rounded-lg shrink-0"><TrendingDown className="w-5 h-5 text-rose-400" /></div>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-100">Liabilities & Debt</h3>
                   <div className="flex items-center">
-                      <span className="ml-2 text-2xl font-mono text-rose-500">-{formatCurrency(liabilityData.currentTotal)}</span>
+                      <span className="ml-2 text-xl sm:text-2xl font-mono text-rose-500">-{formatCurrency(liabilityData.currentTotal)}</span>
                       {!loading && renderTrendBadge(liabilityData.groupTrend)}
                   </div>
               </div>
@@ -363,13 +363,13 @@ const PortfolioView: React.FC = () => {
             {!loading && !demoMode && <AddInstitutionCard onLinked={loadAccounts} />}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-8 rounded-3xl min-h-[450px]">
+              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 md:p-8 rounded-3xl min-h-[450px]">
                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6">Liability History</h4>
                   <div className="h-full max-h-[350px]">
                     <PortfolioChart accountHistories={liabilityData.filteredHistories} accountNames={accountNames} accountColors={accountColors} hidden={hidden} />
                   </div>
               </div>
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl flex flex-col items-center">
+              <div className="bg-slate-900 border border-slate-800 p-4 md:p-8 rounded-3xl flex flex-col items-center">
                   <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 self-start">Liability Breakdown</h4>
                   <div className="w-full">
                     <BreakdownChart holdingsBreakdown={liabilityData.filteredHoldings} accountNames={accountNames} accountColors={accountColors} hidden={hidden} />
