@@ -72,13 +72,26 @@ const BulkActionTray: React.FC<BulkActionTrayProps> = ({ selectedCount, onTagAct
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-800 border-b-2 border-b-blue-500 px-5 py-3 rounded-3xl shadow-2xl z-50 flex items-center gap-4 transition-all duration-300">
-      <span className="text-xs font-bold text-slate-300 pr-4 border-r border-slate-800 shrink-0">
-        {selectedCount} selected
-      </span>
+    <div
+      className="fixed z-50 bg-slate-950 shadow-2xl transition-all duration-300
+        inset-x-0 bottom-0 border-t-2 border-t-blue-500 px-4 py-3 rounded-t-3xl flex flex-col gap-3
+        sm:inset-x-auto sm:left-1/2 sm:bottom-6 sm:-translate-x-1/2 sm:border sm:border-slate-800 sm:border-b-2 sm:border-b-blue-500 sm:px-5 sm:rounded-3xl sm:flex-row sm:items-center sm:gap-4"
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+    >
+      {/* Header (count + close). `sm:contents` dissolves this wrapper on desktop
+          so the count sits inline in the pill and the mobile close is hidden. */}
+      <div className="flex items-center justify-between gap-4 sm:contents">
+        <span className="text-xs font-bold text-slate-300 shrink-0 sm:pr-4 sm:border-r sm:border-slate-800">
+          {selectedCount} selected
+        </span>
+        <button onClick={onClearSelection}
+          className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-slate-300 transition-all shrink-0 sm:hidden">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
       {/* Tags */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-full sm:w-auto">
         <Tag className="w-3.5 h-3.5 text-purple-400 shrink-0" />
         <input
           type="text"
@@ -86,22 +99,22 @@ const BulkActionTray: React.FC<BulkActionTrayProps> = ({ selectedCount, onTagAct
           value={tagInput}
           onChange={e => setTagInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && tagInput.trim()) commitTag('add_tag'); }}
-          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-purple-500/40 w-36 placeholder-slate-600"
+          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-purple-500/40 flex-1 min-w-0 sm:flex-none sm:w-36 placeholder-slate-600"
         />
         <button onClick={() => commitTag('add_tag')} disabled={!tagInput.trim()}
-          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-xs font-bold rounded-xl text-white transition-all">
+          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-xs font-bold rounded-xl text-white transition-all shrink-0">
           + Add
         </button>
         <button onClick={() => commitTag('remove_tag')} disabled={!tagInput.trim()}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:opacity-40 text-xs font-bold rounded-xl text-rose-400 transition-all">
+          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:opacity-40 text-xs font-bold rounded-xl text-rose-400 transition-all shrink-0">
           − Remove
         </button>
       </div>
 
-      <div className="h-6 w-px bg-slate-800 shrink-0" />
+      <div className="hidden sm:block h-6 w-px bg-slate-800 shrink-0" />
 
       {/* Notes */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 w-full sm:w-auto">
         <NotebookPen className="w-3.5 h-3.5 text-blue-400 shrink-0" />
         <input
           type="text"
@@ -109,20 +122,20 @@ const BulkActionTray: React.FC<BulkActionTrayProps> = ({ selectedCount, onTagAct
           value={noteInput}
           onChange={e => setNoteInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && noteInput.trim()) commitNote('set_note'); }}
-          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500/40 w-36 placeholder-slate-600"
+          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500/40 flex-1 min-w-0 sm:flex-none sm:w-36 placeholder-slate-600"
         />
         <button onClick={() => commitNote('set_note')} disabled={!noteInput.trim()}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-xs font-bold rounded-xl text-white transition-all">
+          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-xs font-bold rounded-xl text-white transition-all shrink-0">
           Set
         </button>
         <button onClick={() => commitNote('clear_note')}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold rounded-xl text-slate-400 transition-all">
+          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold rounded-xl text-slate-400 transition-all shrink-0">
           Clear
         </button>
       </div>
 
       <button onClick={onClearSelection}
-        className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-slate-300 transition-all ml-1 shrink-0">
+        className="hidden sm:block p-1.5 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-slate-300 transition-all ml-1 shrink-0">
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -489,7 +502,7 @@ const InvestmentTransactionsPanel: React.FC = () => {
               className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-3 pl-11 pr-4 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500/50 transition-all font-medium"
             />
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto justify-start md:justify-end shrink-0">
             {hasFilters && (
               <button onClick={() => { setSearchQuery(''); setSelectedAccount('all'); setSelectedType('all'); setStartDate(''); setEndDate(''); }}
                 className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-300 border border-slate-700">
@@ -1204,7 +1217,7 @@ const TransactionsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto justify-end shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto justify-start md:justify-end shrink-0">
             {/* Saved Searches Dropdown */}
             <div className="relative" ref={savedDropdownRef}>
               <button
@@ -1995,8 +2008,8 @@ const CapitalGainsPanel: React.FC = () => {
   return (
     <div className="space-y-6 pb-24">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-2xl">
             <Calendar className="w-3.5 h-3.5 text-slate-500" />
             <select value={year} onChange={e => setYear(Number(e.target.value))}
@@ -2192,9 +2205,9 @@ const CapitalGainsPanel: React.FC = () => {
       {/* Sales with Unknown Cost Basis */}
       {!loading && report && report.unknown_basis_sales.length > 0 && (
         <div className="bg-slate-900 border border-amber-800/30 rounded-3xl overflow-hidden shadow-2xl">
-          <div className="px-6 py-4 border-b border-amber-800/20 flex items-center justify-between bg-amber-950/20">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-400" />
+          <div className="px-4 md:px-6 py-4 border-b border-amber-800/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 bg-amber-950/20">
+            <div className="flex flex-wrap items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="text-sm font-black text-amber-300">Sales with Unknown Cost Basis — {year}</span>
               <span className="text-[10px] text-amber-600 font-medium ml-1">
                 {report.unknown_basis_sales.length} unresolved
@@ -2300,9 +2313,9 @@ const CapitalGainsPanel: React.FC = () => {
 
       {/* Unrealized Positions */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-slate-800/60 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-slate-400" />
+        <div className="px-4 md:px-6 py-4 border-b border-slate-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <TrendingDown className="w-4 h-4 text-slate-400 shrink-0" />
             <span className="text-sm font-black text-slate-200">Unrealized Positions</span>
             {report && <span className="text-[10px] text-slate-500 font-medium ml-1">{report.unrealized_positions.length} positions</span>}
           </div>
