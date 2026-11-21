@@ -319,7 +319,7 @@ fn authenticate_cookie(parts: &Parts, state: &Arc<AppState>) -> Result<AuthUser,
         user_id,
         claims: Some(claims),
         token_id: None,
-        scopes: "read,write,sync".to_string(),
+        scopes: "read,write,sync,ingest".to_string(),
         privacy_secret: None,
     })
 }

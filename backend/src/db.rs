@@ -397,7 +397,7 @@ pub async fn insert_plaid_item(
 
 pub async fn get_user_plaid_items(pool: &PgPool, user_id: &str) -> Result<Vec<PlaidItem>, AppError> {
     let items = sqlx::query_as::<_, PlaidItem>(
-        "SELECT id, access_token_enc FROM plaid_items WHERE user_id = $1 AND revoked_at IS NULL"
+        "SELECT id, access_token_enc FROM plaid_items WHERE user_id = $1 AND revoked_at IS NULL AND source = 'plaid'"
     )
     .bind(user_id)
     .fetch_all(pool)
@@ -407,7 +407,7 @@ pub async fn get_user_plaid_items(pool: &PgPool, user_id: &str) -> Result<Vec<Pl
 
 pub async fn get_active_plaid_items(pool: &PgPool) -> Result<Vec<PlaidItem>, AppError> {
     let items = sqlx::query_as::<_, PlaidItem>(
-        "SELECT id, access_token_enc FROM plaid_items WHERE revoked_at IS NULL"
+        "SELECT id, access_token_enc FROM plaid_items WHERE revoked_at IS NULL AND source = 'plaid'"
     )
     .fetch_all(pool)
     .await?;

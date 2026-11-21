@@ -4,7 +4,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::{db, error::AppError, models, privacy, AppState};
+use super::normalize;
+use crate::{db, error::AppError, privacy, AppState};
 
 pub async fn sync_item(state: &Arc<AppState>, access_token: &str, item_id: &str) -> Result<(), AppError> {
     let pool = &state.pool;
@@ -39,34 +40,15 @@ pub async fn sync_item(state: &Arc<AppState>, access_token: &str, item_id: &str)
 
     let plaid_accounts = state.plaid.get_accounts(access_token).await?;
     for acc in plaid_accounts {
-        let acc_name_upper = acc.name.to_uppercase();
-        let is_name_liability = acc_name_upper.contains("CREDIT")
-            || acc_name_upper.contains("MORTGAGE")
-            || acc_name_upper.contains("LOAN")
-            || acc_name_upper.contains("DEBT");
-
         let existing_type = db::get_account_type(pool, &acc.account_id).await?;
-
-        let account_type = if let Some(t) = existing_type { t }
-            else if acc.r#type == "credit" || acc.r#type == "loan" || is_name_liability { models::AccountType::Liability }
-            else { models::AccountType::Asset };
-
-        let is_liability = account_type == models::AccountType::Liability;
-        let direction = if is_liability { -1.0 } else { 1.0 };
-        // .round(): f64 dollars*100 lands just under the integer (4.56 → 455.999…)
-        // and `as i64` truncates, silently shaving a cent.
-        let balance_cents = (acc.balances.current * 100.0 * direction).round() as i64;
-
-        let inst_name_upper = inst_name.to_uppercase();
-        let mut display_name = if acc_name_upper.starts_with(&inst_name_upper) { acc.name.clone() }
-            else if inst_name_upper.starts_with(&acc_name_upper) { inst_name.clone() }
-            else { format!("{} {}", inst_name, acc.name) };
-        if let Some(mask) = &acc.mask { display_name = format!("{} - {}", display_name, mask); }
+        let account_type = normalize::classify_account(&acc.r#type, &acc.name, existing_type);
+        let balance_cents = normalize::signed_balance_cents(acc.balances.current, account_type);
+        let display_name = normalize::display_name(&inst_name, &acc.name, acc.mask.as_deref());
 
         let (name_plain, name_enc) = privacy::seal_required(privacy_pubkey.as_ref(), &display_name)?;
         db::upsert_account(pool, &acc.account_id, &name_plain, name_enc, balance_cents, item_id, account_type).await?;
 
-        let is_investment = acc.r#type == "investment" || acc.r#type == "brokerage";
+        let is_investment = normalize::is_investment(&acc.r#type);
 
         // Write real daily snapshot — replaces synthesised history. Dated by the
         // ET trading day; for investment accounts, skip weekends (market closed).
@@ -75,14 +57,8 @@ pub async fn sync_item(state: &Arc<AppState>, access_token: &str, item_id: &str)
         if is_investment { investment_account_ids.push(acc.account_id.clone()); }
 
         if !is_investment {
-            let holding_name = match acc.r#type.as_str() {
-                "depository" => "Cash Balance",
-                "credit" => "Credit Card Debt",
-                "loan" => "Loan Balance",
-                _ => "Other Balance",
-            };
-            let security_id = if is_liability { format!("DEBT_{}", acc.account_id) } else { format!("CASH_{}", acc.account_id) };
-            let symbol = if is_liability { "DEBT" } else { "CASH" };
+            let (symbol, holding_name, security_id) =
+                normalize::cash_holding(&acc.r#type, &acc.account_id, account_type);
             db::upsert_holding(pool, symbol, &acc.account_id, holding_name, balance_cents, "0%", "neu", &security_id).await?;
         }
     }

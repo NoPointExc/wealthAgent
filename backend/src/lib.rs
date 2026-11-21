@@ -13,6 +13,7 @@ pub mod db;
 pub mod encryption;
 pub mod error;
 pub mod handlers;
+pub mod ingest;
 pub mod mcp;
 pub mod models;
 pub mod oauth;
@@ -41,6 +42,10 @@ pub struct AppState {
     /// cloned user, Google login and bank linking are disabled, data is reaped
     /// daily. Off (default) on prod, which is left completely unaffected.
     pub(crate) demo_mode: bool,
+    /// PLAID_ENABLED (default on). Off: no Plaid calls at all — no nightly
+    /// sync, manual sync or bank linking; data arrives via the MCP ingest
+    /// tools instead (see `ingest`).
+    pub(crate) plaid_enabled: bool,
     /// BILLING=on — Stripe subscription paywall (see `billing` module). None
     /// (default) leaves every route's behavior unchanged.
     pub(crate) billing: Option<billing::BillingConfig>,

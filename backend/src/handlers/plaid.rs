@@ -8,6 +8,9 @@ use axum::{extract::State, Json};
 use crate::plaid::sync;
 use crate::{auth::AuthUser, db, encryption, error::AppError, AppState};
 
+pub(crate) const PLAID_DISABLED: &str =
+    "Plaid sync is turned off on this server; data arrives through the Muse ingest tools.";
+
 pub async fn create_link_token(
     State(state): State<Arc<AppState>>,
     auth: AuthUser,
@@ -16,6 +19,9 @@ pub async fn create_link_token(
     auth.require_web_session()?;
     if state.demo_mode {
         return Err(AppError::Forbidden("Linking a bank isn't available in the demo.".to_string()));
+    }
+    if !state.plaid_enabled {
+        return Err(AppError::Forbidden(PLAID_DISABLED.to_string()));
     }
     let token = state.plaid.create_link_token(&auth.user_id).await?;
     Ok(Json(serde_json::json!({ "link_token": token })))
@@ -32,6 +38,9 @@ pub async fn exchange_public_token(
     auth.require_web_session()?;
     if state.demo_mode {
         return Err(AppError::Forbidden("Linking a bank isn't available in the demo.".to_string()));
+    }
+    if !state.plaid_enabled {
+        return Err(AppError::Forbidden(PLAID_DISABLED.to_string()));
     }
     let access_token = state.plaid.exchange_public_token(&req.public_token).await
         .map_err(|e| { tracing::error!(user_id = %auth.user_id, "Plaid token exchange failed: {}", e); e })?;
@@ -96,6 +105,9 @@ pub async fn sync_plaid_data(
     auth.require_scope("sync")?;
     if state.demo_mode {
         return Err(AppError::Forbidden("Sync is disabled in the demo — data refreshes automatically.".to_string()));
+    }
+    if !state.plaid_enabled {
+        return Err(AppError::Forbidden(PLAID_DISABLED.to_string()));
     }
     let items = db::get_user_plaid_items(&state.pool, &auth.user_id).await?;
 

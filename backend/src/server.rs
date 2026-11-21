@@ -76,6 +76,20 @@ pub async fn build_state() -> Result<Arc<AppState>, Box<dyn std::error::Error>> 
         tracing::info!("DEMO_MODE enabled — public no-login demo instance (Google login + bank linking disabled, demo users reaped daily)");
     }
 
+    let plaid_enabled = !matches!(
+        std::env::var("PLAID_ENABLED").as_deref(),
+        Ok("off") | Ok("false") | Ok("0")
+    );
+    if plaid_enabled {
+        for var in ["PLAID_CLIENT_ID", "PLAID_SECRET"] {
+            if std::env::var(var).map_or(true, |v| v.is_empty()) {
+                panic!("{var} not set (set PLAID_ENABLED=off to run without Plaid)");
+            }
+        }
+    } else {
+        tracing::info!("PLAID_ENABLED=off — no Plaid calls; data arrives via MCP ingest");
+    }
+
     let billing = crate::billing::BillingConfig::from_env();
     if billing.is_some() {
         tracing::info!("BILLING enabled — Stripe subscription paywall active (open signup, unpaid users gated)");
@@ -99,6 +113,7 @@ pub async fn build_state() -> Result<Arc<AppState>, Box<dyn std::error::Error>> 
         public_url,
         privacy_enabled,
         demo_mode,
+        plaid_enabled,
         billing,
         dev_login,
         unlocked_keys: privacy::KeyCache::new(),
@@ -179,7 +194,9 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     if state.demo_mode {
         tokio::spawn(demo_reaper_task(Arc::clone(&state)));
     }
-    tokio::spawn(daily_sync_task(state));
+    if state.plaid_enabled {
+        tokio::spawn(daily_sync_task(state));
+    }
 
     let bind = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
     let listener = tokio::net::TcpListener::bind(&bind).await?;
@@ -208,7 +225,7 @@ async fn daily_sync_task(state: Arc<AppState>) {
 
 async fn sync_all_users(state: &Arc<AppState>) -> Result<usize, AppError> {
     let items = sqlx::query_as::<_, models::PlaidItem>(
-        "SELECT id, access_token_enc FROM plaid_items WHERE revoked_at IS NULL"
+        "SELECT id, access_token_enc FROM plaid_items WHERE revoked_at IS NULL AND source = 'plaid'"
     )
     .fetch_all(&state.pool).await?;
 
