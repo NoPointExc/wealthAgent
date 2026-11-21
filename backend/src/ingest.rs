@@ -572,6 +572,54 @@ async fn ingest_accounts_inner(conn: &mut PgConnection, ctx: &Ctx<'_>, p: &Accou
     Ok(r)
 }
 
+// ── Accounts prelude ──────────────────────────────────────────────────────────
+//
+// Each call is its own DB transaction, so a dry-run accounts push leaves no
+// account links behind and a following dry-run transactions push would see
+// every account as unknown. Dependent calls therefore accept the bank's
+// `accounts` (+ institution_name / as_of) and run the accounts step first,
+// inside the same transaction. Harmless on live pushes too.
+
+fn accounts_prelude(args: &Value) -> Result<Option<AccountsPayload>, AppError> {
+    match args.get("accounts") {
+        None | Some(Value::Null) => Ok(None),
+        Some(_) => {
+            let p: AccountsPayload = parse_payload(args)?;
+            if p.accounts.len() > MAX_ROWS {
+                return Err(bad(format!("accounts must contain at most {MAX_ROWS} entries")));
+            }
+            Ok(Some(p).filter(|p| !p.accounts.is_empty()))
+        }
+    }
+}
+
+async fn run_prelude(
+    conn: &mut PgConnection,
+    ctx: &Ctx<'_>,
+    p: Option<&AccountsPayload>,
+) -> Result<Option<Report>, AppError> {
+    match p {
+        Some(p) => Ok(Some(ingest_accounts_inner(conn, ctx, p).await?)),
+        None => Ok(None),
+    }
+}
+
+fn merge_prelude(mut r: Report, pre: Option<Report>) -> Report {
+    if let Some(pre) = pre {
+        r.notes.push(format!(
+            "accounts step: {} received, {} inserted, {} updated ({} matched), {} skipped",
+            pre.received, pre.inserted, pre.updated, pre.matched, pre.skipped
+        ));
+        r.accounts = pre.accounts;
+        for s in pre.skips {
+            if r.skips.len() < MAX_REPORTED {
+                r.skips.push(json!({ "id": s["id"], "reason": format!("account: {}", s["reason"].as_str().unwrap_or("")) }));
+            }
+        }
+    }
+    r
+}
+
 // ── Bank transactions ─────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -653,9 +701,13 @@ pub async fn ingest_transactions(state: &Arc<AppState>, user_id: &str, args: &Va
     if upserts == 0 && payload.removed.is_empty() {
         return Err(bad("nothing to ingest: pass added / modified / transactions / removed"));
     }
+    let prelude = accounts_prelude(args)?;
     let ctx = load_ctx(state, user_id).await?;
     let mut tx = state.pool.begin().await?;
-    let result = ingest_transactions_inner(&mut tx, &ctx, &payload).await;
+    let result = match run_prelude(&mut tx, &ctx, prelude.as_ref()).await {
+        Ok(pre) => ingest_transactions_inner(&mut tx, &ctx, &payload).await.map(|r| merge_prelude(r, pre)),
+        Err(e) => Err(e),
+    };
     finish(state, user_id, "wealth_ingest_transactions", dry_run, tx, result).await
 }
 
@@ -864,9 +916,13 @@ pub async fn ingest_investment_transactions(state: &Arc<AppState>, user_id: &str
     if payload.investment_transactions.is_empty() || payload.investment_transactions.len() > MAX_ROWS {
         return Err(bad(format!("investment_transactions must contain 1-{MAX_ROWS} entries")));
     }
+    let prelude = accounts_prelude(args)?;
     let ctx = load_ctx(state, user_id).await?;
     let mut tx = state.pool.begin().await?;
-    let result = ingest_inv_inner(&mut tx, &ctx, &payload).await;
+    let result = match run_prelude(&mut tx, &ctx, prelude.as_ref()).await {
+        Ok(pre) => ingest_inv_inner(&mut tx, &ctx, &payload).await.map(|r| merge_prelude(r, pre)),
+        Err(e) => Err(e),
+    };
     finish(state, user_id, "wealth_ingest_investment_transactions", dry_run, tx, result).await
 }
 
@@ -1017,9 +1073,13 @@ pub async fn ingest_holdings(state: &Arc<AppState>, user_id: &str, args: &Value)
     if payload.holdings.is_empty() && payload.account_ids.is_empty() {
         return Err(bad("nothing to ingest: pass holdings and/or account_ids"));
     }
+    let prelude = accounts_prelude(args)?;
     let ctx = load_ctx(state, user_id).await?;
     let mut tx = state.pool.begin().await?;
-    let result = ingest_holdings_inner(&mut tx, &ctx, &payload).await;
+    let result = match run_prelude(&mut tx, &ctx, prelude.as_ref()).await {
+        Ok(pre) => ingest_holdings_inner(&mut tx, &ctx, &payload).await.map(|r| merge_prelude(r, pre)),
+        Err(e) => Err(e),
+    };
     finish(state, user_id, "wealth_ingest_holdings", dry_run, tx, result).await
 }
 

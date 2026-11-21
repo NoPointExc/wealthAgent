@@ -99,6 +99,9 @@ that pulls from its own Plaid connection. Send Plaid response bodies unchanged \
 (Plaid dollars as floats — the server converts to cents). Push accounts first, \
 then transactions / holdings / investment transactions. Every ingest tool takes \
 dry_run=true, which reports exactly what would change without writing. \
+Dry runs save nothing, including account links, so on a dry run also pass \
+the bank's `accounts` (and institution_name) to the transactions, holdings \
+and investment-transactions tools. \
 Export tools (wealth_export_*) return stored history, each row tagged with the \
 pushing agent's own ids (external_id, external_account_id) where linked.
 
@@ -254,6 +257,8 @@ fn tools_list(id: Option<Value>) -> McpResponse {
                     "modified":     { "type": "array", "items": { "type": "object" }, "description": "Plaid transaction objects" },
                     "transactions": { "type": "array", "items": { "type": "object" }, "description": "Alternative to added (/transactions/get shape)" },
                     "removed":      { "type": "array", "items": {}, "description": "Removed transaction ids, as strings or {transaction_id} objects" },
+                    "accounts":     { "type": "array", "items": { "type": "object" }, "description": "Optional: this bank's Plaid accounts (as for wealth_ingest_accounts). Processed first in the same transaction — REQUIRED on dry runs, since dry-run account links are not saved." },
+                    "institution_name": { "type": "string", "description": "With accounts: institution display name" },
                     "dry_run":      { "type": "boolean" }
                 }
             }
@@ -268,6 +273,8 @@ fn tools_list(id: Option<Value>) -> McpResponse {
                     "holdings":    { "type": "array", "items": { "type": "object" }, "description": "account_id, security_id, institution_value, quantity" },
                     "securities":  { "type": "array", "items": { "type": "object" }, "description": "security_id, ticker_symbol, name" },
                     "account_ids": { "type": "array", "items": { "type": "string" }, "description": "Extra accounts covered by this snapshot (e.g. now empty)" },
+                    "accounts":     { "type": "array", "items": { "type": "object" }, "description": "Optional: this bank's Plaid accounts (as for wealth_ingest_accounts). Processed first in the same transaction — REQUIRED on dry runs, since dry-run account links are not saved." },
+                    "institution_name": { "type": "string", "description": "With accounts: institution display name" },
                     "dry_run":     { "type": "boolean" }
                 }
             }
@@ -281,6 +288,8 @@ fn tools_list(id: Option<Value>) -> McpResponse {
                 "properties": {
                     "investment_transactions": { "type": "array", "items": { "type": "object" } },
                     "securities": { "type": "array", "items": { "type": "object" }, "description": "security_id, ticker_symbol, name" },
+                    "accounts":     { "type": "array", "items": { "type": "object" }, "description": "Optional: this bank's Plaid accounts (as for wealth_ingest_accounts). Processed first in the same transaction — REQUIRED on dry runs, since dry-run account links are not saved." },
+                    "institution_name": { "type": "string", "description": "With accounts: institution display name" },
                     "dry_run":    { "type": "boolean" }
                 }
             }

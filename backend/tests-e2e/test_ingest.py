@@ -96,6 +96,22 @@ check("dry run wrote nothing", sql("SELECT count(*) FROM external_id_map") == "0
       and sql("SELECT count(*) FROM accounts WHERE id='muse_new'") == "0")
 check("dry run logged", sql("SELECT count(*) FROM ingest_log WHERE dry_run") == "1")
 
+# dry-run transactions before any account link exists: without accounts every row is unknown...
+DRY_TX = {"added": [{"transaction_id": "m1", "account_id": "muse_chk", "amount": 12.50, "date": "2026-11-10",
+                     "name": "STARBUCKS 123", "pending": False}], "dry_run": True}
+r = call("wealth_ingest_transactions", DRY_TX)
+check("dry tx without accounts: unknown account", r.get("skipped") == 1, r)
+# ...with the bank's accounts in the same call, it matches like a live push would
+r = call("wealth_ingest_transactions", {**DRY_TX, "accounts": ACCOUNTS["accounts"], "institution_name": "Chase"})
+check("dry tx with accounts prelude matches history",
+      any(x["external_id"] == "m1" and x["internal_id"] == "t_old1" for x in r.get("matches", [])) and r.get("skipped") == 0
+      and any("accounts step" in n for n in r.get("notes", [])), r)
+check("prelude reports ambiguous account", any(s["id"] == "muse_sav" and s["reason"].startswith("account:") for s in r.get("skips", [])), r)
+check("prelude dry run wrote nothing", sql("SELECT count(*) FROM external_id_map") == "0")
+r = call("wealth_ingest_holdings", {"holdings": [{"account_id": "muse_brk", "security_id": "s", "institution_value": 1}],
+                                    "accounts": ACCOUNTS["accounts"], "dry_run": True})
+check("dry holdings with accounts prelude", r.get("inserted") == 1 and r.get("skipped") == 0, r)
+
 # ── manual link for the ambiguous one, then real push ───────────────────────
 r = call("wealth_ingest_map", {"action": "set", "kind": "account", "external_id": "muse_sav", "internal_id": "old_sav2"})
 check("map set ambiguous savings", r.get("status") == "success", r)
