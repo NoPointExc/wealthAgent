@@ -30,7 +30,7 @@ use sha2::{Digest, Sha256};
 use crate::{auth, db, AppState};
 
 /// Scopes this resource server understands. Mirrors the PAT scope set.
-const SCOPES: [&str; 3] = ["read", "write", "sync"];
+const SCOPES: [&str; 4] = ["read", "write", "sync", "ingest"];
 
 /// Authorization codes are single-use and short-lived.
 const CODE_TTL_SECS: i64 = 60;
@@ -367,6 +367,7 @@ const SCOPE_BLURB: &[(&str, &str)] = &[
     ("read", "Read your accounts, balances, transactions and capital gains"),
     ("write", "Tag, note and rename — edit your transactions and accounts"),
     ("sync", "Refresh data from your linked banks"),
+    ("ingest", "Push bank data (accounts, balances, transactions, holdings) into WealthAgent"),
 ];
 
 fn consent_html(client_name: &str, scope: &str, ticket: &str) -> String {
@@ -715,8 +716,9 @@ mod tests {
     fn normalize_scope_filters_and_defaults() {
         assert_eq!(normalize_scope(Some("read write")), "read,write");
         assert_eq!(normalize_scope(Some("read,bogus,sync")), "read,sync");
-        assert_eq!(normalize_scope(None), "read,write,sync");
-        assert_eq!(normalize_scope(Some("nonsense")), "read,write,sync");
+        assert_eq!(normalize_scope(Some("read ingest")), "read,ingest");
+        assert_eq!(normalize_scope(None), "read,write,sync,ingest");
+        assert_eq!(normalize_scope(Some("nonsense")), "read,write,sync,ingest");
     }
 
     #[test]

@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AuthUser, McpAuthUser},
-    db, encryption,
+    db, encryption, ingest,
     inner_bulk_update, inner_get_capital_gains, inner_get_transactions,
     models::{BulkAction, BulkUpdateRequest, TransactionQuery},
     privacy, AppState,
@@ -94,6 +94,13 @@ wealth_set_cost_basis, wealth_delete_cost_basis) MODIFY the user's data — \
 confirm with the user before any bulk change (>50 rows) or any cost-basis edit.
 4. wealth_sync refreshes from the bank; it is slow and rate-limited — call it \
 at most once and never in a loop.
+5. Ingest tools (wealth_ingest_*, `ingest` scope) are for a data-feeding agent \
+that pulls from its own Plaid connection. Send Plaid response bodies unchanged \
+(Plaid dollars as floats — the server converts to cents). Push accounts first, \
+then transactions / holdings / investment transactions. Every ingest tool takes \
+dry_run=true, which reports exactly what would change without writing. \
+Export tools (wealth_export_*) return stored history, each row tagged with the \
+pushing agent's own ids (external_id, external_account_id) where linked.
 
 Be precise with numbers, cite the accounts/dates you used, and never invent \
 figures you did not read from a tool.";
@@ -224,6 +231,132 @@ fn tools_list(id: Option<Value>) -> McpResponse {
             }
         },
         {
+            "name": "wealth_ingest_accounts",
+            "description": "PUSH accounts and balances (Plaid /accounts/get shape). Writes today's balance snapshot (or as_of). Pushed account ids are linked to existing accounts by id, then by mask + type; unmatched accounts are created. Ambiguous matches are skipped — resolve with wealth_ingest_map. Use dry_run first. Max 500.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["accounts"],
+                "properties": {
+                    "accounts": { "type": "array", "items": { "type": "object" }, "description": "Plaid account objects: account_id, name, mask, type, subtype, balances{current, available}. Optional per-account institution_name." },
+                    "institution_name": { "type": "string", "description": "Institution display name for all accounts in this call, e.g. 'Chase'" },
+                    "as_of": { "type": "string", "description": "Balance date YYYY-MM-DD (default: today US-Eastern). An older date only adds a snapshot and never overwrites the current balance." },
+                    "dry_run": { "type": "boolean", "description": "Report what would change without writing (default false)" }
+                }
+            }
+        },
+        {
+            "name": "wealth_ingest_transactions",
+            "description": "PUSH bank transactions in Plaid /transactions/sync shape (added, modified, removed) or /transactions/get shape (transactions). Amounts are Plaid dollars (positive = money out). Rows are linked to existing history by id, by pending_transaction_id, or by same account + amount within 3 days; tags and notes are preserved. Max 500 upserts + 500 removals per call.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "added":        { "type": "array", "items": { "type": "object" }, "description": "Plaid transaction objects" },
+                    "modified":     { "type": "array", "items": { "type": "object" }, "description": "Plaid transaction objects" },
+                    "transactions": { "type": "array", "items": { "type": "object" }, "description": "Alternative to added (/transactions/get shape)" },
+                    "removed":      { "type": "array", "items": {}, "description": "Removed transaction ids, as strings or {transaction_id} objects" },
+                    "dry_run":      { "type": "boolean" }
+                }
+            }
+        },
+        {
+            "name": "wealth_ingest_holdings",
+            "description": "PUSH investment holdings (Plaid /investments/holdings/get shape). Each pushed account's holdings are REPLACED by this snapshot; list accounts with no remaining positions in account_ids to clear them. Max 500.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["holdings"],
+                "properties": {
+                    "holdings":    { "type": "array", "items": { "type": "object" }, "description": "account_id, security_id, institution_value, quantity" },
+                    "securities":  { "type": "array", "items": { "type": "object" }, "description": "security_id, ticker_symbol, name" },
+                    "account_ids": { "type": "array", "items": { "type": "string" }, "description": "Extra accounts covered by this snapshot (e.g. now empty)" },
+                    "dry_run":     { "type": "boolean" }
+                }
+            }
+        },
+        {
+            "name": "wealth_ingest_investment_transactions",
+            "description": "PUSH investment transactions (Plaid /investments/transactions/get shape). Linked to existing history by id, or by same account + amount + quantity + type within 3 days, so cost-basis overrides are kept. Max 500.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["investment_transactions"],
+                "properties": {
+                    "investment_transactions": { "type": "array", "items": { "type": "object" } },
+                    "securities": { "type": "array", "items": { "type": "object" }, "description": "security_id, ticker_symbol, name" },
+                    "dry_run":    { "type": "boolean" }
+                }
+            }
+        },
+        {
+            "name": "wealth_ingest_map",
+            "description": "List or edit the links between pushed (external) ids and WealthAgent rows. action=list (optional kind); action=set links external_id to an existing internal_id (use before the first push to resolve an ambiguous account); action=delete removes a link.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                    "action":      { "type": "string", "enum": ["list", "set", "delete"] },
+                    "kind":        { "type": "string", "enum": ["account", "transaction", "investment_transaction"] },
+                    "external_id": { "type": "string" },
+                    "internal_id": { "type": "string" },
+                    "limit":       { "type": "integer", "description": "list: max rows (default 500, max 5000)" },
+                    "offset":      { "type": "integer" }
+                }
+            }
+        },
+        {
+            "name": "wealth_ingest_status",
+            "description": "Ingest health: recent pushes and their results, id-link counts, item sources, latest snapshot date, and whether the server's own Plaid sync is on.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "wealth_export_transactions",
+            "description": "Export stored bank-transaction history (beyond what Plaid still returns). Each row carries external_id / external_account_id when linked to the pushing agent's ids. account_id may be internal or external. Paged.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "account_id": { "type": "string" },
+                    "since":  { "type": "string", "description": "YYYY-MM-DD inclusive" },
+                    "until":  { "type": "string", "description": "YYYY-MM-DD inclusive" },
+                    "limit":  { "type": "integer", "description": "default 500, max 1000" },
+                    "offset": { "type": "integer" }
+                }
+            }
+        },
+        {
+            "name": "wealth_export_investment_transactions",
+            "description": "Export stored investment-transaction history, newest first, with external ids where linked. Paged.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "account_id": { "type": "string" },
+                    "since":  { "type": "string" },
+                    "until":  { "type": "string" },
+                    "limit":  { "type": "integer", "description": "default 500, max 1000" },
+                    "offset": { "type": "integer" }
+                }
+            }
+        },
+        {
+            "name": "wealth_export_snapshots",
+            "description": "Export daily account balance history (cents; liabilities negative). Paged, ordered by account then date.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "account_id": { "type": "string" },
+                    "since":  { "type": "string" },
+                    "until":  { "type": "string" },
+                    "limit":  { "type": "integer", "description": "default 2000, max 5000" },
+                    "offset": { "type": "integer" }
+                }
+            }
+        },
+        {
+            "name": "wealth_export_holdings",
+            "description": "Export current holdings (cents) with security_id and quantity, optionally for one account.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "account_id": { "type": "string" } }
+            }
+        },
+        {
             "name": "wealth_delete_cost_basis",
             "description": "Remove a previously set cost basis override, reverting the sale to unknown basis.",
             "inputSchema": {
@@ -255,7 +388,11 @@ async fn dispatch(
     // Scope gate: the token's granted scopes bound what each tool may do.
     let required_scope = match name {
         "wealth_whoami" => None,
-        "wealth_accounts_list" | "wealth_tx_list" | "wealth_gains" => Some("read"),
+        "wealth_accounts_list" | "wealth_tx_list" | "wealth_gains" | "wealth_ingest_status"
+        | "wealth_export_transactions" | "wealth_export_investment_transactions"
+        | "wealth_export_snapshots" | "wealth_export_holdings" => Some("read"),
+        "wealth_ingest_accounts" | "wealth_ingest_transactions" | "wealth_ingest_holdings"
+        | "wealth_ingest_investment_transactions" | "wealth_ingest_map" => Some("ingest"),
         "wealth_tx_tag" | "wealth_tx_note" | "wealth_accounts_rename"
         | "wealth_set_cost_basis" | "wealth_delete_cost_basis" => Some("write"),
         "wealth_sync" => Some("sync"),
@@ -278,6 +415,12 @@ async fn dispatch(
         "wealth_sync"             => tool_sync(state, auth, id).await,
         "wealth_set_cost_basis"   => tool_set_cost_basis(state, auth, id, &args).await,
         "wealth_delete_cost_basis"=> tool_delete_cost_basis(state, auth, id, &args).await,
+        "wealth_ingest_accounts" | "wealth_ingest_transactions" | "wealth_ingest_holdings"
+        | "wealth_ingest_investment_transactions" => tool_ingest(state, auth, id, name, &args).await,
+        "wealth_ingest_map"       => tool_ingest_map(state, auth, id, &args).await,
+        "wealth_ingest_status"    => json_result(id, ingest::status(state, &auth.user_id).await),
+        "wealth_export_transactions" | "wealth_export_investment_transactions"
+        | "wealth_export_snapshots" | "wealth_export_holdings" => tool_export(state, auth, id, name, &args).await,
         other => rpc_err(id, -32602, &format!("Unknown tool: {other}")),
     }
 }
@@ -442,6 +585,9 @@ async fn tool_sync(state: &Arc<AppState>, auth: &AuthUser, id: Option<Value>) ->
     if state.demo_mode {
         return tool_err(id, "Sync is disabled in the demo — data refreshes automatically.");
     }
+    if !state.plaid_enabled {
+        return tool_err(id, crate::handlers::PLAID_DISABLED);
+    }
     let items = match db::get_user_plaid_items(&state.pool, &auth.user_id).await {
         Ok(v) => v,
         Err(e) => return tool_err(id, e),
@@ -509,4 +655,91 @@ async fn tool_delete_cost_basis(state: &Arc<AppState>, auth: &AuthUser, id: Opti
         Ok(()) => tool_text(id, json!({"status":"success","txn_id":txn_id}).to_string()),
         Err(e) => tool_err(id, e),
     }
+}
+
+// ── Ingest / export (Muse) ────────────────────────────────────────────────────
+
+/// Tool result from a JSON value, with errors as properly escaped JSON.
+fn json_result(id: Option<Value>, r: Result<Value, crate::error::AppError>) -> McpResponse {
+    match r {
+        Ok(v) => tool_json(id, &v),
+        Err(e) => tool_text(id, json!({ "error": e.to_string() }).to_string()),
+    }
+}
+
+fn page_args(args: &Value, default: i64, max: i64) -> (i64, i64) {
+    let limit = args["limit"].as_i64().unwrap_or(default).clamp(1, max);
+    let offset = args["offset"].as_i64().unwrap_or(0).max(0);
+    (limit, offset)
+}
+
+async fn tool_ingest(state: &Arc<AppState>, auth: &AuthUser, id: Option<Value>, name: &str, args: &Value) -> McpResponse {
+    if state.demo_mode {
+        return tool_err(id, "Ingest is disabled in the demo.");
+    }
+    let uid = &auth.user_id;
+    let r = match name {
+        "wealth_ingest_accounts" => ingest::ingest_accounts(state, uid, args).await,
+        "wealth_ingest_transactions" => ingest::ingest_transactions(state, uid, args).await,
+        "wealth_ingest_holdings" => ingest::ingest_holdings(state, uid, args).await,
+        _ => ingest::ingest_investment_transactions(state, uid, args).await,
+    };
+    json_result(id, r.map(|report| serde_json::to_value(report).unwrap_or(Value::Null)))
+}
+
+async fn tool_ingest_map(state: &Arc<AppState>, auth: &AuthUser, id: Option<Value>, args: &Value) -> McpResponse {
+    let kind = match args["kind"].as_str() {
+        None => None,
+        Some(k) => match ingest::Kind::parse(k) {
+            Some(k) => Some(k),
+            None => return tool_err(id, "kind must be account | transaction | investment_transaction"),
+        },
+    };
+    let uid = &auth.user_id;
+    let r = match args["action"].as_str().unwrap_or("") {
+        "list" => {
+            let (limit, offset) = page_args(args, 500, 5000);
+            ingest::map_list(state, uid, kind, limit, offset).await
+        }
+        "set" | "delete" if state.demo_mode => return tool_err(id, "Ingest is disabled in the demo."),
+        "set" => {
+            let (Some(kind), Some(ext), Some(internal)) =
+                (kind, args["external_id"].as_str(), args["internal_id"].as_str())
+            else {
+                return tool_err(id, "set requires kind, external_id and internal_id");
+            };
+            ingest::map_set(state, uid, kind, ext, internal).await
+        }
+        "delete" => {
+            let (Some(kind), Some(ext)) = (kind, args["external_id"].as_str()) else {
+                return tool_err(id, "delete requires kind and external_id");
+            };
+            ingest::map_delete(state, uid, kind, ext).await
+        }
+        other => return tool_err(id, format!("unknown action '{other}'; use list | set | delete")),
+    };
+    json_result(id, r)
+}
+
+async fn tool_export(state: &Arc<AppState>, auth: &AuthUser, id: Option<Value>, name: &str, args: &Value) -> McpResponse {
+    let crypto = match privacy::user_crypto(state, auth).await {
+        Ok(c) => c,
+        Err(e) => return tool_err(id, e),
+    };
+    let uid = &auth.user_id;
+    let (limit, offset) = if name == "wealth_export_snapshots" { page_args(args, 2000, 5000) } else { page_args(args, 500, 1000) };
+    let range = ingest::ExportRange {
+        account_id: args["account_id"].as_str(),
+        since: args["since"].as_str(),
+        until: args["until"].as_str(),
+        limit,
+        offset,
+    };
+    let r = match name {
+        "wealth_export_transactions" => ingest::export_transactions(state, uid, &range, &crypto).await,
+        "wealth_export_investment_transactions" => ingest::export_investment_transactions(state, uid, &range, &crypto).await,
+        "wealth_export_snapshots" => ingest::export_snapshots(state, uid, &range).await,
+        _ => ingest::export_holdings(state, uid, range.account_id, &crypto).await,
+    };
+    json_result(id, r)
 }

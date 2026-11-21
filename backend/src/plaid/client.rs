@@ -13,8 +13,9 @@ pub struct PlaidClient {
 
 impl PlaidClient {
     pub fn new() -> Self {
-        let client_id = env::var("PLAID_CLIENT_ID").expect("PLAID_CLIENT_ID not set");
-        let secret = env::var("PLAID_SECRET").expect("PLAID_SECRET not set");
+        // Required only when PLAID_ENABLED is on; build_state enforces that.
+        let client_id = env::var("PLAID_CLIENT_ID").unwrap_or_default();
+        let secret = env::var("PLAID_SECRET").unwrap_or_default();
         let env_name = env::var("PLAID_ENV").unwrap_or_else(|_| "sandbox".to_string());
         
         let base_url = match env_name.as_str() {

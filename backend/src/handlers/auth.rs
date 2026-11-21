@@ -31,6 +31,7 @@ pub async fn get_config(State(state): State<Arc<AppState>>) -> Json<serde_json::
         "demo_mode": state.demo_mode,
         "privacy_enabled": state.privacy_enabled,
         "billing_enabled": state.billing.is_some(),
+        "plaid_enabled": state.plaid_enabled,
     }))
 }
 

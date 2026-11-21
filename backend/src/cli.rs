@@ -19,6 +19,11 @@ USAGE:
   invite list                    List all invited emails
   demo seed                      Seed the demo template user (sandbox data)
   demo status                    Show the demo template's data counts
+  plaid status <email>           List a user's items (Plaid / Muse) with account counts
+  plaid disconnect <email> [--yes]
+                                 Remove the user's Plaid items at Plaid (stops billing)
+                                 and mark them revoked. Keeps all stored data. Without
+                                 --yes, only shows what would be disconnected.
 ";
 
 pub async fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -34,6 +39,9 @@ pub async fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     // `invite` only needs a DB pool.
     if cmd == "demo" {
         return demo(&args[1..]).await;
+    }
+    if cmd == "plaid" {
+        return plaid(&args[1..]).await;
     }
 
     let db_url = std::env::var("DATABASE_URL").map_err(|_| {
@@ -171,6 +179,73 @@ async fn invite(pool: &sqlx::PgPool, args: &[String]) -> Result<(), Box<dyn std:
         }
         Some(other) => {
             eprintln!("unknown invite subcommand: {other}\n\n{USAGE}");
+            std::process::exit(2);
+        }
+    }
+    Ok(())
+}
+
+async fn user_id_by_email(pool: &sqlx::PgPool, email: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let id: Option<String> = sqlx::query_scalar("SELECT id FROM users WHERE lower(email) = $1")
+        .bind(norm(email))
+        .fetch_optional(pool)
+        .await?;
+    id.ok_or_else(|| format!("no user with email {email}").into())
+}
+
+async fn plaid(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let sub = args.first().map(|s| s.as_str()).unwrap_or("");
+    let Some(email) = args.get(1) else {
+        eprintln!("usage: plaid status <email> | plaid disconnect <email> [--yes]");
+        std::process::exit(2);
+    };
+    let confirmed = args.iter().any(|a| a == "--yes");
+    let state = crate::server::build_state().await?;
+    let uid = user_id_by_email(&state.pool, email).await?;
+
+    let items: Vec<(String, String, bool, i64)> = sqlx::query_as(
+        "SELECT pi.id, pi.source, pi.revoked_at IS NOT NULL,
+                (SELECT count(*) FROM accounts a WHERE a.plaid_item_id = pi.id)
+         FROM plaid_items pi WHERE pi.user_id = $1 ORDER BY pi.created_at",
+    )
+    .bind(&uid)
+    .fetch_all(&state.pool)
+    .await?;
+    for (id, source, revoked, accounts) in &items {
+        println!("{id}  source={source}  revoked={revoked}  accounts={accounts}");
+    }
+
+    match sub {
+        "status" => {}
+        "disconnect" => {
+            let targets: Vec<&(String, String, bool, i64)> =
+                items.iter().filter(|(_, src, revoked, _)| src == "plaid" && !revoked).collect();
+            if targets.is_empty() {
+                println!("No active Plaid items to disconnect.");
+                return Ok(());
+            }
+            if !confirmed {
+                println!("Would disconnect {} Plaid item(s) above. This cannot be undone without re-linking each bank. Re-run with --yes.", targets.len());
+                return Ok(());
+            }
+            for (id, ..) in targets {
+                let blob: Option<Vec<u8>> = sqlx::query_scalar("SELECT access_token_enc FROM plaid_items WHERE id = $1")
+                    .bind(id)
+                    .fetch_one(&state.pool)
+                    .await?;
+                let Some(blob) = blob else { continue };
+                let token = crate::encryption::decrypt_token(&state.encryption_key, &blob)?;
+                match state.plaid.remove_item(&token).await {
+                    Ok(()) => {
+                        db::revoke_plaid_item(&state.pool, id).await?;
+                        println!("✓ {id} removed at Plaid and marked revoked (data kept)");
+                    }
+                    Err(e) => eprintln!("✗ {id}: Plaid /item/remove failed, left active: {e}"),
+                }
+            }
+        }
+        other => {
+            eprintln!("unknown plaid subcommand: {other}");
             std::process::exit(2);
         }
     }
