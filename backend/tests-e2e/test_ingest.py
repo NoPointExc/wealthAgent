@@ -96,6 +96,22 @@ check("dry run wrote nothing", sql("SELECT count(*) FROM external_id_map") == "0
       and sql("SELECT count(*) FROM accounts WHERE id='muse_new'") == "0")
 check("dry run logged", sql("SELECT count(*) FROM ingest_log WHERE dry_run") == "1")
 
+# dry-run transactions before any account link exists: without accounts every row is unknown...
+DRY_TX = {"added": [{"transaction_id": "m1", "account_id": "muse_chk", "amount": 12.50, "date": "2026-11-10",
+                     "name": "STARBUCKS 123", "pending": False}], "dry_run": True}
+r = call("wealth_ingest_transactions", DRY_TX)
+check("dry tx without accounts: unknown account", r.get("skipped") == 1, r)
+# ...with the bank's accounts in the same call, it matches like a live push would
+r = call("wealth_ingest_transactions", {**DRY_TX, "accounts": ACCOUNTS["accounts"], "institution_name": "Chase"})
+check("dry tx with accounts prelude matches history",
+      any(x["external_id"] == "m1" and x["internal_id"] == "t_old1" for x in r.get("matches", [])) and r.get("skipped") == 0
+      and any("accounts step" in n for n in r.get("notes", [])), r)
+check("prelude reports ambiguous account", any(s["id"] == "muse_sav" and s["reason"].startswith("account:") for s in r.get("skips", [])), r)
+check("prelude dry run wrote nothing", sql("SELECT count(*) FROM external_id_map") == "0")
+r = call("wealth_ingest_holdings", {"holdings": [{"account_id": "muse_brk", "security_id": "s", "institution_value": 1}],
+                                    "accounts": ACCOUNTS["accounts"], "dry_run": True})
+check("dry holdings with accounts prelude", r.get("inserted") == 1 and r.get("skipped") == 0, r)
+
 # ── manual link for the ambiguous one, then real push ───────────────────────
 r = call("wealth_ingest_map", {"action": "set", "kind": "account", "external_id": "muse_sav", "internal_id": "old_sav2"})
 check("map set ambiguous savings", r.get("status") == "success", r)
@@ -167,6 +183,14 @@ check("removed pending id did not delete posted row", r.get("removed") == 0 and 
 r = call("wealth_ingest_transactions", {"modified": [{"transaction_id": "mp1", "account_id": "muse_chk", "amount": 1, "date": "2026-11-20", "name": "X"}]})
 check("superseded pending id is not resurrected", r.get("skipped") == 1, r)
 
+# Plaid re-issued a bank transaction id: removed(old) + added(new) in one sync -> new id takes over the row, tags kept
+sql("UPDATE transactions SET tags='latte' WHERE id='t_old3'")
+before_tx = sql("SELECT count(*) FROM transactions")
+r = call("wealth_ingest_transactions", {"added": [{"transaction_id": "m4_v2", "account_id": "muse_chk", "amount": 5.00,
+          "date": "2026-11-12", "name": "STARBUCKS 123", "pending": False}], "removed": ["m4"]})
+check("bank id change takes over row", any(x["external_id"] == "m4_v2" and x["internal_id"] == "t_old3" for x in r.get("matches", [])) and r.get("removed") == 0, r)
+check("bank id change keeps tags and count", sql("SELECT tags FROM transactions WHERE id='t_old3'") == "latte" and sql("SELECT count(*) FROM transactions") == before_tx)
+
 # real removal
 r = call("wealth_ingest_transactions", {"removed": ["m3"]})
 check("removed deletes row + link", r.get("removed") == 1 and sql("SELECT count(*) FROM transactions WHERE id='m3'") == "0"
@@ -189,6 +213,24 @@ check("inv: cost-basis override still attached", sql("SELECT count(*) FROM cost_
 r = call("wealth_gains", {"year": 2026})
 check("capital gains still computes", "error" not in r, r)
 
+# Plaid re-issued an investment id: same sell under a new id, old id absent -> relink, no new row, override kept
+before_inv = sql("SELECT count(*) FROM investment_transactions")
+SELL_V2 = {"investment_transaction_id": "mi_sell_v2", "account_id": "muse_brk", "security_id": "sec_tsla", "date": "2026-10-01",
+           "name": "SELL TSLA", "quantity": -2, "amount": -600.00, "price": 300.0, "fees": 0, "type": "sell", "subtype": "sell"}
+SECS = [{"security_id": "sec_tsla", "ticker_symbol": "TSLA", "name": "Tesla Inc"}]
+r = call("wealth_ingest_investment_transactions", {"investment_transactions": [SELL_V2], "securities": SECS})
+check("inv id change relinks existing row", any(x["external_id"] == "mi_sell_v2" and x["internal_id"] == "old_inv_sell" and x["how"] == "id_changed" for x in r.get("matches", [])), r)
+check("inv id change: no new row, override kept", sql("SELECT count(*) FROM investment_transactions") == before_inv
+      and sql("SELECT count(*) FROM cost_basis_overrides WHERE investment_transaction_id='old_inv_sell'") == "1"
+      and sql("SELECT count(*) FROM external_id_map WHERE external_id='mi_sell'") == "0")
+# two genuinely identical trades in one push stay two rows
+TWIN = {"investment_transaction_id": "mi_twin_a", "account_id": "muse_brk", "security_id": "sec_tsla", "date": "2026-11-18",
+        "name": "BUY TSLA", "quantity": 1, "amount": 300.00, "price": 300.0, "type": "buy", "subtype": "buy"}
+r = call("wealth_ingest_investment_transactions", {"investment_transactions": [TWIN, TWIN | {"investment_transaction_id": "mi_twin_b"}], "securities": SECS})
+check("identical trades in one push both kept", r.get("inserted") == 2, r)
+r = call("wealth_ingest_investment_transactions", {"investment_transactions": [TWIN, TWIN | {"investment_transaction_id": "mi_twin_b"}], "securities": SECS})
+check("identical trades re-push is idempotent", r.get("inserted") == 0 and r.get("matched") == 0, r)
+
 # ── holdings ────────────────────────────────────────────────────────────────
 r = call("wealth_ingest_holdings", {
     "holdings": [{"account_id": "muse_brk", "security_id": "sec_aapl", "institution_value": 3450.00, "quantity": 15}],
@@ -210,7 +252,7 @@ check("export snapshots incl. history", r.get("total") == 4, r)
 r = call("wealth_export_holdings", {"account_id": "muse_brk"})
 check("export holdings", r.get("total") == 2, r)
 r = call("wealth_export_investment_transactions", {"since": "2026-01-01"})
-check("export inv txns with external ids", r.get("total") == 3 and any(i.get("external_id") == "mi_sell" for i in r["items"]), r)
+check("export inv txns with external ids", r.get("total") == 5 and any(i.get("id") == "old_inv_sell" and i.get("external_id") == "mi_sell_v2" for i in r["items"]), r)
 r = call("wealth_export_transactions", {"account_id": "old_chk"}, tok=TOK_U2)
 check("other user's export sees nothing", r.get("total") == 0, r)
 r = call("wealth_export_transactions", {"since": "bad"})

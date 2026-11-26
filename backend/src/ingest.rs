@@ -298,6 +298,15 @@ async fn unmap_external(conn: &mut PgConnection, ctx: &Ctx<'_>, kind: Kind, ext:
     Ok(())
 }
 
+/// Drop any other pushed id's claim on `internal`, so `ext` can take it over.
+async fn release_row(conn: &mut PgConnection, ctx: &Ctx<'_>, kind: Kind, internal: &str, ext: &str) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM external_id_map WHERE user_id = $1 AND kind = $2 AND internal_id = $3 AND external_id <> $4")
+        .bind(ctx.user_id).bind(kind.as_str()).bind(internal).bind(ext)
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
+}
+
 /// Resolve a pushed account id that must already be known (for transactions
 /// and holdings). Records a same-id mapping on first sight.
 async fn known_account(conn: &mut PgConnection, ctx: &Ctx<'_>, ext: &str) -> Result<Option<String>, AppError> {
@@ -572,6 +581,54 @@ async fn ingest_accounts_inner(conn: &mut PgConnection, ctx: &Ctx<'_>, p: &Accou
     Ok(r)
 }
 
+// ── Accounts prelude ──────────────────────────────────────────────────────────
+//
+// Each call is its own DB transaction, so a dry-run accounts push leaves no
+// account links behind and a following dry-run transactions push would see
+// every account as unknown. Dependent calls therefore accept the bank's
+// `accounts` (+ institution_name / as_of) and run the accounts step first,
+// inside the same transaction. Harmless on live pushes too.
+
+fn accounts_prelude(args: &Value) -> Result<Option<AccountsPayload>, AppError> {
+    match args.get("accounts") {
+        None | Some(Value::Null) => Ok(None),
+        Some(_) => {
+            let p: AccountsPayload = parse_payload(args)?;
+            if p.accounts.len() > MAX_ROWS {
+                return Err(bad(format!("accounts must contain at most {MAX_ROWS} entries")));
+            }
+            Ok(Some(p).filter(|p| !p.accounts.is_empty()))
+        }
+    }
+}
+
+async fn run_prelude(
+    conn: &mut PgConnection,
+    ctx: &Ctx<'_>,
+    p: Option<&AccountsPayload>,
+) -> Result<Option<Report>, AppError> {
+    match p {
+        Some(p) => Ok(Some(ingest_accounts_inner(conn, ctx, p).await?)),
+        None => Ok(None),
+    }
+}
+
+fn merge_prelude(mut r: Report, pre: Option<Report>) -> Report {
+    if let Some(pre) = pre {
+        r.notes.push(format!(
+            "accounts step: {} received, {} inserted, {} updated ({} matched), {} skipped",
+            pre.received, pre.inserted, pre.updated, pre.matched, pre.skipped
+        ));
+        r.accounts = pre.accounts;
+        for s in pre.skips {
+            if r.skips.len() < MAX_REPORTED {
+                r.skips.push(json!({ "id": s["id"], "reason": format!("account: {}", s["reason"].as_str().unwrap_or("")) }));
+            }
+        }
+    }
+    r
+}
+
 // ── Bank transactions ─────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -653,9 +710,13 @@ pub async fn ingest_transactions(state: &Arc<AppState>, user_id: &str, args: &Va
     if upserts == 0 && payload.removed.is_empty() {
         return Err(bad("nothing to ingest: pass added / modified / transactions / removed"));
     }
+    let prelude = accounts_prelude(args)?;
     let ctx = load_ctx(state, user_id).await?;
     let mut tx = state.pool.begin().await?;
-    let result = ingest_transactions_inner(&mut tx, &ctx, &payload).await;
+    let result = match run_prelude(&mut tx, &ctx, prelude.as_ref()).await {
+        Ok(pre) => ingest_transactions_inner(&mut tx, &ctx, &payload).await.map(|r| merge_prelude(r, pre)),
+        Err(e) => Err(e),
+    };
     finish(state, user_id, "wealth_ingest_transactions", dry_run, tx, result).await
 }
 
@@ -667,8 +728,11 @@ async fn fuzzy_txn(
     date: NaiveDate,
     description: &str,
     pending: bool,
+    removed_in_call: &[String],
 ) -> Result<Option<String>, AppError> {
     // txn_date is TEXT; the CASE guards the cast against any malformed legacy value.
+    // A row claimed by an id that this same call removes is fair game: Plaid
+    // reports a transaction whose id changed as removed(old) + added(new).
     Ok(sqlx::query_scalar(
         "SELECT id FROM (
            SELECT t.id, t.raw_string, t.pending,
@@ -676,13 +740,15 @@ async fn fuzzy_txn(
            FROM transactions t
            WHERE t.account_id = $1 AND t.amount = $2
              AND NOT EXISTS (SELECT 1 FROM external_id_map m
-                             WHERE m.user_id = $4 AND m.kind = 'transaction' AND m.internal_id = t.id)
+                             WHERE m.user_id = $4 AND m.kind = 'transaction' AND m.internal_id = t.id
+                               AND m.external_id <> ALL($8))
          ) c
          WHERE dd <= $5
          ORDER BY (raw_string = $6) DESC, dd, (pending = $7) DESC, id
          LIMIT 1",
     )
     .bind(account).bind(amount).bind(date).bind(ctx.user_id).bind(FUZZY_DAYS).bind(description).bind(pending)
+    .bind(removed_in_call)
     .fetch_optional(&mut *conn)
     .await?)
 }
@@ -693,6 +759,7 @@ async fn ingest_transactions_inner(conn: &mut PgConnection, ctx: &Ctx<'_>, p: &T
         ..Default::default()
     };
     let mut accounts: HashMap<String, Option<String>> = HashMap::new();
+    let removed_ids: Vec<String> = p.removed.iter().map(|r| r.id().to_string()).collect();
 
     for t in p.added.iter().chain(&p.modified).chain(&p.transactions) {
         let ext = t.transaction_id.as_str();
@@ -741,12 +808,13 @@ async fn ingest_transactions_inner(conn: &mut PgConnection, ctx: &Ctx<'_>, p: &T
                     }
                 }
                 if found.is_none() {
-                    if let Some(id) = fuzzy_txn(conn, ctx, &account, amount, date, &description, t.pending).await? {
+                    if let Some(id) = fuzzy_txn(conn, ctx, &account, amount, date, &description, t.pending, &removed_ids).await? {
                         found = Some((id, "fuzzy"));
                     }
                 }
                 match found {
                     Some((id, how)) => {
+                        release_row(conn, ctx, Kind::Transaction, &id, ext).await?;
                         map_insert(conn, ctx, Kind::Transaction, ext, &id, how).await?;
                         r.matched(ext, &id, how);
                         (id, false)
@@ -864,9 +932,13 @@ pub async fn ingest_investment_transactions(state: &Arc<AppState>, user_id: &str
     if payload.investment_transactions.is_empty() || payload.investment_transactions.len() > MAX_ROWS {
         return Err(bad(format!("investment_transactions must contain 1-{MAX_ROWS} entries")));
     }
+    let prelude = accounts_prelude(args)?;
     let ctx = load_ctx(state, user_id).await?;
     let mut tx = state.pool.begin().await?;
-    let result = ingest_inv_inner(&mut tx, &ctx, &payload).await;
+    let result = match run_prelude(&mut tx, &ctx, prelude.as_ref()).await {
+        Ok(pre) => ingest_inv_inner(&mut tx, &ctx, &payload).await.map(|r| merge_prelude(r, pre)),
+        Err(e) => Err(e),
+    };
     finish(state, user_id, "wealth_ingest_investment_transactions", dry_run, tx, result).await
 }
 
@@ -874,6 +946,7 @@ async fn ingest_inv_inner(conn: &mut PgConnection, ctx: &Ctx<'_>, p: &InvPayload
     let mut r = Report { received: p.investment_transactions.len(), ..Default::default() };
     let secs = security_map(&p.securities);
     let mut accounts: HashMap<String, Option<String>> = HashMap::new();
+    let pushed_ids: Vec<String> = p.investment_transactions.iter().map(|t| t.investment_transaction_id.clone()).collect();
 
     for t in &p.investment_transactions {
         let ext = t.investment_transaction_id.as_str();
@@ -929,10 +1002,37 @@ async fn ingest_inv_inner(conn: &mut PgConnection, ctx: &Ctx<'_>, p: &InvPayload
                 .bind(ctx.user_id).bind(FUZZY_DAYS).bind(&t.name)
                 .fetch_optional(&mut *conn)
                 .await?;
-                match fuzzy {
-                    Some(id) => {
-                        map_insert(conn, ctx, Kind::InvestmentTransaction, ext, &id, "fuzzy").await?;
-                        r.matched(ext, &id, "fuzzy");
+                // Plaid can re-issue investment transaction ids (seen on stock-plan
+                // transfers). An exact twin whose claiming id is absent from this
+                // push is the same transaction under its old id: move the link.
+                let relinked: Option<String> = match fuzzy {
+                    Some(_) => None,
+                    None => {
+                        let symbol = t.security_id.as_deref().and_then(|id| secs.get(id)).and_then(|s| s.ticker_symbol.clone());
+                        sqlx::query_scalar(
+                            "SELECT it.id FROM investment_transactions it
+                             JOIN external_id_map m ON m.user_id = $6 AND m.kind = 'investment_transaction'
+                                                   AND m.internal_id = it.id
+                             WHERE it.account_id = $1 AND it.amount = $2 AND it.date = $3 AND it.txn_type = $4
+                               AND ((it.quantity IS NULL AND $5::float8 IS NULL) OR abs(it.quantity - $5::float8) < 0.000001)
+                               AND coalesce(it.symbol, '') = coalesce($7, '')
+                               AND m.external_id <> ALL($8)
+                             ORDER BY it.id
+                             LIMIT 1",
+                        )
+                        .bind(&account).bind(amount).bind(date).bind(&txn_type).bind(t.quantity)
+                        .bind(ctx.user_id).bind(symbol).bind(&pushed_ids)
+                        .fetch_optional(&mut *conn)
+                        .await?
+                    }
+                };
+                if let Some(id) = &relinked {
+                    release_row(conn, ctx, Kind::InvestmentTransaction, id, ext).await?;
+                }
+                match fuzzy.map(|id| (id, "fuzzy")).or(relinked.map(|id| (id, "id_changed"))) {
+                    Some((id, how)) => {
+                        map_insert(conn, ctx, Kind::InvestmentTransaction, ext, &id, how).await?;
+                        r.matched(ext, &id, how);
                         (id, false)
                     }
                     None => {
@@ -1017,9 +1117,13 @@ pub async fn ingest_holdings(state: &Arc<AppState>, user_id: &str, args: &Value)
     if payload.holdings.is_empty() && payload.account_ids.is_empty() {
         return Err(bad("nothing to ingest: pass holdings and/or account_ids"));
     }
+    let prelude = accounts_prelude(args)?;
     let ctx = load_ctx(state, user_id).await?;
     let mut tx = state.pool.begin().await?;
-    let result = ingest_holdings_inner(&mut tx, &ctx, &payload).await;
+    let result = match run_prelude(&mut tx, &ctx, prelude.as_ref()).await {
+        Ok(pre) => ingest_holdings_inner(&mut tx, &ctx, &payload).await.map(|r| merge_prelude(r, pre)),
+        Err(e) => Err(e),
+    };
     finish(state, user_id, "wealth_ingest_holdings", dry_run, tx, result).await
 }
 
